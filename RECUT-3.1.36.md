@@ -80,14 +80,17 @@ to ship together.
 
 ## What this recut does
 
-Three source files in `DiagnosticExplorer.Hosting/` are amended.
+Three source files in `DiagnosticExplorer.Hosting/` are amended back
+to the `3.1.35` shape.
 
-1. `DiagnosticHostingExtensions.cs` — restore `IConfiguration` and
-   `Action<HttpConnectionOptions>` as optional parameters on
-   `AddDiagnosticExplorer`. Both default to `null`. If `config` is
-   omitted the extension still resolves `IConfiguration` from DI via
-   a temporary `BuildServiceProvider()` (the pattern introduced in
-   the first `3.1.36` cut), preserving the no-arg call form.
+1. `DiagnosticHostingExtensions.cs` — restore `IConfiguration` as a
+   required parameter on `AddDiagnosticExplorer` and
+   `Action<HttpConnectionOptions>` as an optional one. The first
+   `3.1.36` cut had dropped both and resolved `IConfiguration`
+   internally via a temporary `services.BuildServiceProvider()`. That
+   pattern is an antipattern (ASP0000) — it instantiates and disposes
+   every singleton registered so far, which then get rebuilt in the
+   real container — so it is not preserved here.
 
 2. `DiagnosticHostingService.cs` — restore the `_configureHttp` field
    and the optional `Action<HttpConnectionOptions>` parameter on the
@@ -110,15 +113,20 @@ The lifecycle / race-condition fixes from `a8f0e78`, `83e675f`,
 
 | Call form | 3.1.35 | first 3.1.36 (f6a2228) | this recut |
 |---|---|---|---|
-| `services.AddDiagnosticExplorer()` | compile error | works | works |
+| `services.AddDiagnosticExplorer()` | compile error | works | **compile error** |
 | `services.AddDiagnosticExplorer(config)` | works | compile error | works |
 | `services.AddDiagnosticExplorer(config, configureHttp)` | works | compile error | works |
 | `DiagnosticHostingService.Start(url)` | works | works | works |
 | `DiagnosticHostingService.Start(url, configureHttp)` | works | compile error | works |
 
-This recut is a strict superset of `3.1.35` and the first `3.1.36`
-for these call sites — every form that compiled against either
-earlier version compiles against this one.
+The no-arg form introduced by the first `3.1.36` is deliberately
+dropped. It was an antipattern (see file note above) and matched no
+working consumer call site — the two BPX places that used it
+(`Test.ConsoleApp/Program.cs`, `JobsService/Program.cs`) also failed
+against `3.1.35`, so they were already broken or excluded from build
+and were updated in the same change-set to pass `IConfiguration`
+explicitly. Every other call form that compiled against `3.1.35`
+compiles unchanged against this recut.
 
 ## Verification
 

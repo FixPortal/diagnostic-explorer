@@ -12,22 +12,10 @@ namespace DiagnosticExplorer
     {
         public static IServiceCollection AddDiagnosticExplorer(
             this IServiceCollection services,
-            IConfiguration config = null,
+            IConfiguration config,
             Action<HttpConnectionOptions> configureHttp = null)
         {
-            if (config != null)
-            {
-                services.Configure<DiagnosticOptions>(config.GetSection("DiagnosticExplorer"));
-            }
-            else
-            {
-                using (ServiceProvider provider = services.BuildServiceProvider())
-                {
-                    IConfiguration configuration = provider.GetService<IConfiguration>();
-                    services.Configure<DiagnosticOptions>(configuration.GetSection("DiagnosticExplorer"));
-                }
-            }
-
+            services.Configure<DiagnosticOptions>(config.GetSection("DiagnosticExplorer"));
             services.AddHostedService(sp =>
                 new DiagnosticHostingService(sp.GetService<IOptions<DiagnosticOptions>>(), configureHttp));
             return services;
