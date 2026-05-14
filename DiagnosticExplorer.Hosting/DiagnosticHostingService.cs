@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,7 +71,7 @@ public class DiagnosticHostingService
                 UserDomain = Environment.UserDomainName,
                 UserName = Environment.UserName,
                 MachineName = Environment.MachineName,
-                ProcessName = Process.GetCurrentProcess().ProcessName.Replace(".vshost", "")
+                ProcessName = ResolveProcessName()
             };
 
             _registrationHandlers = Regex.Split(_options.Uri, @"\s|;|,")
@@ -86,6 +87,20 @@ public class DiagnosticHostingService
         {
             Debug.WriteLine(ex);
         }
+    }
+
+    // The entry assembly name is a stabler identifier than the OS process
+    // name for .NET apps: `dotnet MyApp.dll` reports "dotnet" as the
+    // process, but the entry assembly is still "MyApp". Falls back to the
+    // process name when there is no managed entry assembly (rare -- mostly
+    // unmanaged hosts).
+    private static string ResolveProcessName()
+    {
+        string entryAssemblyName = Assembly.GetEntryAssembly()?.GetName().Name;
+        if (!string.IsNullOrEmpty(entryAssemblyName))
+            return entryAssemblyName;
+
+        return Process.GetCurrentProcess().ProcessName.Replace(".vshost", "");
     }
 
     public async Task StopHosting()
