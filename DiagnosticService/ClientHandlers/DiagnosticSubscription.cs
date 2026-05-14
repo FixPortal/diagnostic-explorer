@@ -71,9 +71,9 @@ public class DiagnosticSubscription
 
         lock (_startStopLock)
         {
-            _webClients.TryAdd(webClient.ConnectionId, webClient);
+            bool added = _webClients.TryAdd(webClient.ConnectionId, webClient);
 
-            if (_streamingStarted)
+            if (added && _streamingStarted)
                 webClient.StartStreamingEvents(Process.Id, _eventRepo);
 
             StartIfRequired();
@@ -211,11 +211,12 @@ public class DiagnosticSubscription
     {
         //Debug.WriteLine($"@@@@@@@@@@ DiagnosticSubscription {_instance} initial events arrived {events.Length}");
 
-        //put lock here to ensure clients start streaming exactly once.
-        _eventRepo.LogEvents(events);
-
         lock (_startStopLock)
         {
+            if (_streamingStarted)
+                return;
+
+            _eventRepo.LogEvents(events);
             _streamingStarted = true;
 
             foreach (WebClientHandler handler in _webClients.Values)
