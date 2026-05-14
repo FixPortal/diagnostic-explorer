@@ -126,14 +126,18 @@ public class DiagnosticSubscription
     private void StartDiagClientEvents()
     {
         _eventRepo.Clear();
+        IDiagnosticClient diagnosticClient = DiagnosticClient!;
         //Debug.WriteLine($"@@@@@@@@@@ DiagnosticSubscription StartEventSubscriptions");
-        _eventSetSubscription = DiagnosticClient!.EventsSet.Subscribe(HandleInitialEventsArrived);
-        _eventStreamSubscription = DiagnosticClient!.EventsStreamed.Subscribe(evt => 
+        IDisposable eventSetSubscription = diagnosticClient.EventsSet.Subscribe(HandleInitialEventsArrived);
+        IDisposable eventStreamSubscription = diagnosticClient.EventsStreamed.Subscribe(evt => 
         {
             //Debug.WriteLine($"@@@@@@@@@@ DiagnosticSubscription {_instance} received single event {evt.Id} {evt.SinkName}");
             _eventRepo.LogEvents(evt);
         });
-        FireAndForget(DiagnosticClient.SubscribeEvents);
+        _eventSetSubscription = eventSetSubscription;
+        _eventStreamSubscription = eventStreamSubscription;
+        RunDetached(() => diagnosticClient.SubscribeEvents(),
+            ex => HandleSubscribeEventsFailure(diagnosticClient, eventSetSubscription, eventStreamSubscription, ex));
     }
 
     private void StopDiagClientEvents()
@@ -146,20 +150,61 @@ public class DiagnosticSubscription
         _eventSetSubscription = null;
         _eventStreamSubscription = null;
         if (DiagnosticClient != null)
-            FireAndForget(DiagnosticClient.UnsubscribeEvents);
+            RunDetached(() => DiagnosticClient.UnsubscribeEvents());
     }
 
   
-    private async void FireAndForget(Func<Task> action)
+    private void RunDetached(Func<Task> action, Action<Exception>? onError = null)
     {
         try
         {
-            await action();
+            Task task = action();
+            if (task.IsCompletedSuccessfully)
+                return;
+
+            _ = ObserveDetachedTask(task, onError);
         }
         catch (Exception ex)
         {
-            //Debug.WriteLine(ex);
+            onError?.Invoke(ex);
         }
+    }
+
+    private async Task ObserveDetachedTask(Task task, Action<Exception>? onError)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception ex)
+        {
+            onError?.Invoke(ex);
+        }
+    }
+
+    private void HandleSubscribeEventsFailure(
+        IDiagnosticClient diagnosticClient,
+        IDisposable eventSetSubscription,
+        IDisposable eventStreamSubscription,
+        Exception ex)
+    {
+        lock (_startStopLock)
+        {
+            if (!ReferenceEquals(DiagnosticClient, diagnosticClient))
+                return;
+
+            if (!ReferenceEquals(_eventSetSubscription, eventSetSubscription)
+                || !ReferenceEquals(_eventStreamSubscription, eventStreamSubscription))
+                return;
+
+            eventSetSubscription.Dispose();
+            eventStreamSubscription.Dispose();
+            _eventSetSubscription = null;
+            _eventStreamSubscription = null;
+            _streamingStarted = false;
+        }
+
+        Trace.WriteLine($"DiagnosticSubscription {Process.Id} failed to subscribe events: {ex.Message}");
     }
 
     private void HandleInitialEventsArrived(SystemEvent[] events)

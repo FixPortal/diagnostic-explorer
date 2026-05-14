@@ -86,7 +86,7 @@ internal class HubServerAdapter : IDiagnosticHubClient
 
     public Task GetDiagnostics(string requestId)
     {
-        Task.Run(async () => {
+        return Task.Run(async () => {
             RpcResult<byte[]> result = null;
             try
             {
@@ -103,12 +103,11 @@ internal class HubServerAdapter : IDiagnosticHubClient
 
             await _hubConn.InvokeCoreAsync<string>(nameof(IDiagnosticHubServer.GetDiagnosticsReturn), new object[] { result });
         });
-        return Task.CompletedTask;
     }
 
     public Task SetProperty(string requestId, string path, string value)
     {
-        Task.Run(async () => {
+        return Task.Run(async () => {
             RpcResult<OperationResponse> result = null;
 
             try
@@ -125,12 +124,11 @@ internal class HubServerAdapter : IDiagnosticHubClient
                 await _hubConn.InvokeCoreAsync<string>(nameof(IDiagnosticHubServer.SetPropertyReturn), new object[] { result });
             }
         });
-        return Task.CompletedTask;
     }
 
     public Task ExecuteOperation(string requestId, string path, string operation, string[] args)
     {
-        Task.Run(async () => {
+        return Task.Run(async () => {
             RpcResult<OperationResponse> result = null;
 
             try
@@ -147,7 +145,6 @@ internal class HubServerAdapter : IDiagnosticHubClient
                 await _hubConn.InvokeCoreAsync<string>(nameof(IDiagnosticHubServer.ExecuteOperationReturn), new object[] { result });
             }
         });
-        return Task.CompletedTask;
     }
 
     public async Task<RegistrationResponse> Register(Registration registration)
