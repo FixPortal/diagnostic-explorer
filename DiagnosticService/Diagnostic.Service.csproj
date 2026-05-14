@@ -1,11 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-	<TargetFramework>net8.0-windows</TargetFramework>
+	<TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 	<OutputType>Exe</OutputType>
-	<RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UserSecretsId>dotnet-DiagnosticService-905F9298-F93E-4AC6-A693-1617A98B91C8</UserSecretsId>
 	<!-- <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract> -->
 	<AssemblyVersion>6.1.0.0</AssemblyVersion>

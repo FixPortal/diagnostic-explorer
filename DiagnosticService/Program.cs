@@ -14,7 +14,7 @@ public static class Program
             options.ServiceName = "DiagnosticExplorer";
         });
 
-        builder.Configuration.AddJsonFile(Expand(@"Config\settings.json"));
+        builder.Configuration.AddJsonFile(Expand(Path.Combine("Config", "settings.json")));
 
         builder.Services.Configure<DiagServiceSettings>(builder.Configuration.GetSection(nameof(DiagServiceSettings)));
         builder.Services.AddDiagnosticExplorer(builder.Configuration);

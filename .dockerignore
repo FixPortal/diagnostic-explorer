@@ -1,0 +1,35 @@
+# VCS and editor
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/.idea
+**/*.suo
+**/*.user
+**/*.*proj.user
+**/.DS_Store
+
+# Docker
+**/.dockerignore
+**/.env
+**/azds.yaml
+**/docker-compose*
+**/Dockerfile*
+Docker/
+
+# Build output
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/npm-debug.log
+
+# Generated nupkgs are not needed inside the build image (project refs only)
+nupkg/
+
+# Top-level non-build artefacts
+LICENSE
+README.md
+RECUT-*.md
+diagnostics-web/coverage/
+diagnostics-web/.angular/

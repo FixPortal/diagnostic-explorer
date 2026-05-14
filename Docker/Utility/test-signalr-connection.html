@@ -1,10 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <title>SignalR WebHub Test</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const hubUrlInput = document.getElementById('hub-url');
             const connectionStatusElement = document.getElementById('connection-status');
             const connectButton = document.getElementById('connect-button');
             const disconnectButton = document.getElementById('disconnect-button');
@@ -13,27 +14,22 @@
             let connection = null;
 
             connectButton.addEventListener('click', function() {
-                // Create the connection
+                const url = hubUrlInput.value.trim();
                 connection = new signalR.HubConnectionBuilder()
-                    .withUrl('http://localhost:5000/web-hub', {
-                        skipNegotiation: true,
-                        transport: signalR.HttpTransportType.WebSockets
-                    })
+                    .withUrl(url)
                     .withAutomaticReconnect()
                     .build();
 
-                // Setup connection event handlers
                 connection.onclose(() => {
                     connectionStatusElement.innerText = 'Disconnected';
                     connectionStatusElement.style.color = 'red';
                 });
 
-                // Start the connection
                 connection.start()
                     .then(() => {
                         connectionStatusElement.innerText = 'Connected';
                         connectionStatusElement.style.color = 'green';
-                        addMessage('Connection established successfully!');
+                        addMessage('Connection established to ' + url);
                         connectButton.disabled = true;
                         disconnectButton.disabled = false;
                     })
@@ -41,7 +37,7 @@
                         connectionStatusElement.innerText = 'Error';
                         connectionStatusElement.style.color = 'red';
                         console.error('Connection error:', err);
-                        addMessage('Error connecting to the hub: ' + err);
+                        addMessage('Error connecting to ' + url + ': ' + err);
                         addMessage('Check browser console for details');
                     });
             });
@@ -67,10 +63,20 @@
 </head>
 <body>
     <h1>SignalR WebHub Connection Test</h1>
+    <p>
+      Use this page to verify the diagnostic service is reachable. The
+      default URL targets the local Docker Compose deployment from
+      <code>Docker/compose-and-create-image.yaml</code> (port 2803).
+    </p>
 
     <div>
+        <label>Hub URL:
+            <input type="text" id="hub-url" value="http://localhost:2803/web-hub" size="60">
+        </label>
+    </div>
+    <div>
         <p>Connection Status: <span id="connection-status" style="color: red;">Disconnected</span></p>
-        <button id="connect-button">Connect to WebHub</button>
+        <button id="connect-button">Connect</button>
         <button id="disconnect-button" disabled>Disconnect</button>
     </div>
 
