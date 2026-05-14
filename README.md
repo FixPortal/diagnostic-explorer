@@ -113,6 +113,7 @@ compose file. Most-useful:
 |---|---|---|
 | `DIAGEXPLORER_HOST_PORT` | `2803` | Host-side port mapping if 2803 is in use locally |
 | `MONGO_USERNAME` / `MONGO_PASSWORD` | `admin` / `password123` | Mongo root credentials |
+| `DIAGEXPLORER_IMAGE_NAME` | `ghcr.io/cell001nz/diagnostic-explorer` | Repoint at a fork's GHCR namespace |
 | `DIAGEXPLORER_IMAGE_TAG` | `latest` | Pin to a specific GHCR tag (e.g. `3.1.37`) |
 
 The service listens on port `2803` inside the container. Settings
@@ -155,9 +156,10 @@ Triggers:
 - `workflow_dispatch` → manual publish from any ref
 - `pull_request` against `main` → build-validate only, no push
 
-The image is `linux/amd64`. First-publish caveat: the GHCR package
-defaults to private — flip it to public from the package's GitHub
-Settings page if you want anonymous pulls.
+The image is `linux/amd64`. The GHCR package's visibility inherits
+the source repo on first publish (public repo → public package,
+private repo → private package). Override at any time from the
+package's settings page on GitHub.
 
 ## Releases
 

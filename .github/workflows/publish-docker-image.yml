@@ -12,8 +12,9 @@
 # no external secrets required.
 #
 # Image lives at: ghcr.io/${{ github.repository_owner }}/diagnostic-explorer
-# Make it public from the package's settings page on GitHub (default is
-# private) if you want consumers to pull without auth.
+# Visibility inherits the source repo on first publish (public repo ->
+# public package, private repo -> private package). Override at any
+# time from the package's settings page on GitHub.
 
 name: Publish Docker image
 
