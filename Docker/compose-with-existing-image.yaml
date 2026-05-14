@@ -5,13 +5,16 @@
 #   docker compose -f Docker/compose-with-existing-image.yaml up -d
 #
 # Environment variable overrides (set in your shell or a sibling .env file):
-#   MONGO_USERNAME           - mongo root user           (default: admin)
-#   MONGO_PASSWORD           - mongo root password       (default: password123)
-#   DIAGEXPLORER_HOST_PORT   - host-side port for 2803   (default: 2803)
+#   MONGO_USERNAME           - mongo root user             (default: admin)
+#   MONGO_PASSWORD           - mongo root password         (default: password123)
+#   DIAGEXPLORER_HOST_PORT   - host-side port for 2803     (default: 2803)
 #                              Override (e.g. 2903) if another process on
 #                              the host is already bound to 2803 -- for
 #                              instance a native DiagnosticExplorer.Service
 #                              running outside Docker.
+#   DIAGEXPLORER_IMAGE_TAG   - which published image tag  (default: latest)
+#                              `latest` tracks main; pin to `v3.1.37` /
+#                              `sha-abc1234` for a specific build.
 
 name: diagnostic-explorer
 
@@ -39,7 +42,10 @@ services:
       start_period: 10s
 
   diagnostic-explorer:
-    image: destructivedude/diagnostic_explorer
+    # Published by .github/workflows/publish-docker-image.yml on each main /
+    # tag push. Override DIAGEXPLORER_IMAGE_TAG (default: latest) to pin a
+    # specific build, e.g. a semver tag (`v3.1.37`) or sha tag (`sha-abc1234`).
+    image: ghcr.io/cell001nz/diagnostic-explorer:${DIAGEXPLORER_IMAGE_TAG:-latest}
     container_name: diagnostic-service
     restart: unless-stopped
     ports:
