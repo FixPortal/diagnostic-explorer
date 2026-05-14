@@ -1,0 +1,82 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>SignalR WebHub Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const connectionStatusElement = document.getElementById('connection-status');
+            const connectButton = document.getElementById('connect-button');
+            const disconnectButton = document.getElementById('disconnect-button');
+            const messagesElement = document.getElementById('messages');
+
+            let connection = null;
+
+            connectButton.addEventListener('click', function() {
+                // Create the connection
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl('http://localhost:5000/web-hub', {
+                        skipNegotiation: true,
+                        transport: signalR.HttpTransportType.WebSockets
+                    })
+                    .withAutomaticReconnect()
+                    .build();
+
+                // Setup connection event handlers
+                connection.onclose(() => {
+                    connectionStatusElement.innerText = 'Disconnected';
+                    connectionStatusElement.style.color = 'red';
+                });
+
+                // Start the connection
+                connection.start()
+                    .then(() => {
+                        connectionStatusElement.innerText = 'Connected';
+                        connectionStatusElement.style.color = 'green';
+                        addMessage('Connection established successfully!');
+                        connectButton.disabled = true;
+                        disconnectButton.disabled = false;
+                    })
+                    .catch(err => {
+                        connectionStatusElement.innerText = 'Error';
+                        connectionStatusElement.style.color = 'red';
+                        console.error('Connection error:', err);
+                        addMessage('Error connecting to the hub: ' + err);
+                        addMessage('Check browser console for details');
+                    });
+            });
+
+            disconnectButton.addEventListener('click', function() {
+                if (connection) {
+                    connection.stop()
+                        .then(() => {
+                            addMessage('Disconnected from the hub');
+                            connectButton.disabled = false;
+                            disconnectButton.disabled = true;
+                        });
+                }
+            });
+
+            function addMessage(message) {
+                const li = document.createElement('li');
+                li.textContent = message;
+                messagesElement.appendChild(li);
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>SignalR WebHub Connection Test</h1>
+
+    <div>
+        <p>Connection Status: <span id="connection-status" style="color: red;">Disconnected</span></p>
+        <button id="connect-button">Connect to WebHub</button>
+        <button id="disconnect-button" disabled>Disconnect</button>
+    </div>
+
+    <div>
+        <h3>Messages:</h3>
+        <ul id="messages"></ul>
+    </div>
+</body>
+</html>
