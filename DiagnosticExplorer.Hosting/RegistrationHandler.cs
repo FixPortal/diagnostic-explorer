@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using DiagnosticExplorer.Util;
 using DiagWebService.Hubs;
 using log4net;
+using Microsoft.AspNetCore.Http.Connections.Client;
 using Microsoft.AspNetCore.SignalR.Client;
 
 
@@ -32,6 +33,8 @@ public class RegistrationHandler
     private Subject<DiagnosticMsg> _logSubject = new();
     private Channel<IList<DiagnosticMsg>> _logChannel;
 
+    private Action<HttpConnectionOptions> _configureHttp;
+
 
     public RegistrationHandler(string url, Registration registration)
     {
@@ -39,8 +42,9 @@ public class RegistrationHandler
         _registration = registration;
     }
 
-    public void Start()
+    public void Start(Action<HttpConnectionOptions> configureHttp = null)
     {
+        _configureHttp = configureHttp;
         _stopToken = new CancellationTokenSource();
         _logChannel = Channel.CreateBounded<IList<DiagnosticMsg>>(
             new BoundedChannelOptions(1_000_000) {
@@ -157,9 +161,9 @@ public class RegistrationHandler
         {
             Debug.WriteLine("Diagnostic RegistrationHandler constructing connection");
             _connection = new HubConnectionBuilder()
-                .WithUrl(_url, options => {
+                .WithUrl(_url, _configureHttp ?? (options => {
                     options.UseDefaultCredentials = true;
-                })
+                }))
                 .Build();
 
             _connection.Closed += HandleClosed;

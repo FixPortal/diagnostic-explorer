@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using DiagnosticExplorer.Log4Net;
+using Microsoft.AspNetCore.Http.Connections.Client;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -21,14 +22,18 @@ public class DiagnosticHostingService
 
     private RegistrationHandler[] _registrationHandlers;
 
-    private DiagnosticHostingService(DiagnosticOptions options)
+    private Action<HttpConnectionOptions> _configureHttp;
+
+    private DiagnosticHostingService(DiagnosticOptions options, Action<HttpConnectionOptions> configureHttp = null)
     {
         _options = options;
+        _configureHttp = configureHttp;
     }
 
 #if NET5_0_OR_GREATER
 
-    public DiagnosticHostingService(IOptions<DiagnosticOptions> options) : this(options.Value)
+    public DiagnosticHostingService(IOptions<DiagnosticOptions> options, Action<HttpConnectionOptions> configureHttp = null)
+        : this(options.Value, configureHttp)
     {
         Debug.WriteLine($"DiagnosticHostingService constructed {_options.Enabled} Uri [{_options.Uri}");
     }
@@ -75,7 +80,7 @@ public class DiagnosticHostingService
                 .ToArray();
 
             foreach (RegistrationHandler handler in _registrationHandlers)
-                handler.Start();
+                handler.Start(_configureHttp);
         }
         catch (Exception ex)
         {
@@ -99,12 +104,12 @@ public class DiagnosticHostingService
     }
 
 
-    public static void Start(string url)
+    public static void Start(string url, Action<HttpConnectionOptions> configureHttp = null)
     {
         if (_instance == null)
         {
             DiagnosticOptions options = new(url);
-            _instance = new DiagnosticHostingService(options);
+            _instance = new DiagnosticHostingService(options, configureHttp);
             _instance.StartHosting();
 
         }
