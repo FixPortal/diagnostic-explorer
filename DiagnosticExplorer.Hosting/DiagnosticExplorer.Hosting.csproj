@@ -2,9 +2,9 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net6.0;net48</TargetFrameworks>
-		<Version>3.1.36</Version>
-		<AssemblyVersion>3.1.36.0</AssemblyVersion>
-		<FileVersion>3.1.36.0</FileVersion>
+		<Version>3.1.37</Version>
+		<AssemblyVersion>3.1.37.0</AssemblyVersion>
+		<FileVersion>3.1.37.0</FileVersion>
 		<LangVersion>latest</LangVersion>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	</PropertyGroup>
@@ -14,7 +14,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="6.0.7" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
