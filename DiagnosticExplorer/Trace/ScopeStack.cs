@@ -1,32 +1,42 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using DiagnosticExplorer.Util;
-
 namespace DiagnosticExplorer;
 
-internal class ScopeStack
+internal sealed class ScopeStack
 {
-    private readonly List<TraceScope> _scopes = new();
-    private readonly ReaderWriterLockSlim _lock = new();
+    public static ScopeStack Empty { get; } = new();
 
-    public TraceScope Current
+    private ScopeStack()
     {
-        get {
-            using (_lock.ReadGuard())
-                return _scopes.LastOrDefault();
-        }
     }
 
-    public void Add(TraceScope scope)
+    private ScopeStack(TraceScope current, ScopeStack parent)
     {
-        using (_lock.WriteGuard())
-            _scopes.Add(scope);
+        Current = current;
+        Parent = parent;
     }
 
-    public void Remove(TraceScope scope)
+    public TraceScope Current { get; }
+
+    private ScopeStack Parent { get; }
+
+    public bool IsEmpty => Current == null;
+
+    public ScopeStack Push(TraceScope scope)
     {
-        using (_lock.WriteGuard())
-            _scopes.Add(scope);
+        return new ScopeStack(scope, this);
+    }
+
+    public ScopeStack Remove(TraceScope scope)
+    {
+        if (IsEmpty)
+            return this;
+
+        if (ReferenceEquals(Current, scope))
+            return Parent ?? Empty;
+
+        ScopeStack updatedParent = Parent?.Remove(scope) ?? Empty;
+        if (ReferenceEquals(updatedParent, Parent))
+            return this;
+
+        return new ScopeStack(Current, updatedParent);
     }
 }

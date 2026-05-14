@@ -46,8 +46,7 @@ using ATraceItem = TraceItem<TraceScope>;
 public class TraceScope : IDisposable
 {
     private static AsyncLocal<ScopeStack> _scopeStack = new();
-    private static ReaderWriterLockSlim _scopeStackLock = new();
-		
+ 		
     private DateTime _created = DateTime.UtcNow;
     private DateTime? _disposed;
     private List<ATraceItem> _traceItems = new();
@@ -98,12 +97,12 @@ public class TraceScope : IDisposable
 
         _forceTrace = forceTrace;
 
-        ScopeStack scopeStack = GetCurrentScopeStack(create: true);
+        ScopeStack scopeStack = _scopeStack.Value ?? ScopeStack.Empty;
         _isRoot = scopeStack.Current == null;
             
         TraceScope current = scopeStack.Current;
         current?.AddTraceItem(new ATraceItem(this));
-        scopeStack.Add(this);
+        _scopeStack.Value = scopeStack.Push(this);
     }
 
     private void AddTraceItem(ATraceItem traceItem)
@@ -130,25 +129,7 @@ public class TraceScope : IDisposable
         TraceMessage();
     }
 
-    public static TraceScope Current => GetCurrentScopeStack(create: false)?.Current;
-
-    private static ScopeStack GetCurrentScopeStack(bool create)
-    {
-        ScopeStack scopeStack = _scopeStack.Value;
-        if (scopeStack != null || !create)
-            return scopeStack;
-
-        using (_scopeStackLock.UpgradeableReadGuard())
-        {
-            if (_scopeStack.Value == null)
-            {
-                using (_scopeStackLock.WriteGuard())
-                    _scopeStack.Value ??= new ScopeStack();
-            }
-
-            return _scopeStack.Value;
-        }
-    }
+    public static TraceScope Current => _scopeStack.Value?.Current;
 
 
     public string Name { get; set; }
@@ -306,16 +287,11 @@ public class TraceScope : IDisposable
 
             _disposed = DateTime.UtcNow;
 
-            var currentStack = GetCurrentScopeStack(create: false);
+            ScopeStack currentStack = _scopeStack.Value;
             if (currentStack != null)
             {
-                currentStack.Remove(this);
-
-                if (_scopeStack.Value == null)
-                {
-                    using (_scopeStackLock.WriteGuard())
-                        _scopeStack.Value = null;
-                }
+                ScopeStack updatedStack = currentStack.Remove(this);
+                _scopeStack.Value = updatedStack.IsEmpty ? null : updatedStack;
             }
 
             TraceMessage();
