@@ -2,11 +2,12 @@
 # Build context must be the repo root (see Docker/compose-*.yaml).
 
 # Stage 1 — build the Angular SPA.
-# Angular 13 officially supports Node 16; pin to 16-alpine for repeatability.
-FROM node:16-alpine AS spa-build
+# Angular 21 requires an active Node LTS; pin to 22-alpine for repeatability.
+FROM node:22-alpine AS spa-build
 WORKDIR /spa
-COPY diagnostics-web/package.json diagnostics-web/package-lock.json ./
-RUN npm ci --legacy-peer-deps
+# .npmrc carries legacy-peer-deps=true, needed for npm ci to resolve the graph.
+COPY diagnostics-web/package.json diagnostics-web/package-lock.json diagnostics-web/.npmrc ./
+RUN npm ci
 COPY diagnostics-web/ ./
 RUN npm run build
 

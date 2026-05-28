@@ -23,7 +23,7 @@ DiagnosticExplorer.Hosting/  net8.0 / net6.0 / net48 hosting integration
                                DiagnosticHostingService, RegistrationHandler
 DiagnosticService/           Standalone web service (Docker payload)
                              - ASP.NET Core + SignalR hubs + SPA host
-diagnostics-web/             Angular 13 SPA (the dashboard UI)
+diagnostics-web/             Angular 21 SPA (the dashboard UI)
 Docker/                      Dockerfile and compose YAMLs for the service
 WidgetSample/                WinForms demo of the library
 ConsoleApp/                  Smaller CLI demo
@@ -123,11 +123,36 @@ different store.
 # Library + service + samples:
 dotnet build DiagnosticExplorer.sln -c Release
 
-# Angular dashboard (Node 16 recommended; Angular 13 doesn't love Node 18+):
+# Angular dashboard (Node 20.19+ / 22 for Angular 21):
 cd diagnostics-web
-npm ci --legacy-peer-deps
+npm ci
 npm run build
 ```
+
+`diagnostics-web/.npmrc` pins `legacy-peer-deps=true`, so `npm ci` resolves the
+dependency graph without an explicit flag (the Angular build tooling's peer
+range for Tailwind lags the installed Tailwind 3).
+
+### Frontend tests and mutation analysis
+
+The dashboard is tested with **Jest** (`jest-preset-angular`); Karma has been
+removed.
+
+```bash
+cd diagnostics-web
+
+# Unit tests with coverage:
+npm test
+
+# Mutation analysis (StrykerJS over the Jest suite):
+npm run test:mutation
+```
+
+Stryker writes its report to `diagnostics-web/reports/mutation/`.
+`scripts/summarize-stryker.ps1` condenses `mutation.json` into a compact
+JSON/Markdown summary, which the `mutation-web` GitHub Actions workflow posts to
+the run's job summary. The `publish-docker-image` workflow runs `npm ci`,
+`npm test`, and `npm run build` as a frontend gate before building the image.
 
 The shipped libraries have `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>`,
 so a Release build produces the NuGet packages under each project's
