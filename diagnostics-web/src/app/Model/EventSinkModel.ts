@@ -4,8 +4,7 @@ import {CategoryModel} from './CategoryModel';
 import {EventModel} from './EventModel';
 import {FilterCriteria} from './FilterCriteria';
 import {Watch} from '../util/Watch';
-
-const pluralize = require('pluralize');
+import pluralize from 'pluralize';
 
 export class EventSinkModel {
     name = '';

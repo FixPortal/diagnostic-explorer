@@ -1,35 +1,60 @@
+import {CUSTOM_ELEMENTS_SCHEMA} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
-import {RouterTestingModule} from '@angular/router/testing';
 import {AppComponent} from './app.component';
+import {AppModel} from './Model/AppModel';
 
+/**
+ * Characterization coverage for the app shell. The component pulls in the
+ * Material toolbar and a tree of feature components, and its constructor kicks
+ * off AppModel.start() (which opens a SignalR connection in production). We
+ * stub AppModel so construction is side-effect free and allow the child
+ * elements through CUSTOM_ELEMENTS_SCHEMA, then assert the real shell renders
+ * rather than the long-removed Angular CLI placeholder.
+ */
 describe('AppComponent', () => {
+    let startCalls: number;
+    let appModelStub: Partial<AppModel>;
+
     beforeEach(async () => {
+        startCalls = 0;
+        appModelStub = {
+            tabIndex: 0,
+            titleMessage: '',
+            mainMessage: 'Connecting',
+            mainMessageClass: '',
+            mainMessageCanClick: false,
+            mainMessageClick: () => undefined,
+            viewRealtime: () => undefined,
+            viewRetro: () => undefined,
+            start: () => {
+                startCalls++;
+                return Promise.resolve();
+            },
+        };
+
         await TestBed.configureTestingModule({
-            imports: [
-                RouterTestingModule
-            ],
-            declarations: [
-                AppComponent
-            ],
-        }).compileComponents();
+            declarations: [AppComponent],
+            schemas: [CUSTOM_ELEMENTS_SCHEMA],
+        })
+            .overrideComponent(AppComponent, {
+                set: {providers: [{provide: AppModel, useValue: appModelStub}]},
+            })
+            .compileComponents();
     });
 
-    it('should create the app', () => {
+    it('creates the app shell and starts the diagnostics connection on load', () => {
         const fixture = TestBed.createComponent(AppComponent);
-        const app = fixture.componentInstance;
-        expect(app).toBeTruthy();
+
+        expect(fixture.componentInstance).toBeTruthy();
+        expect(startCalls).toBe(1);
     });
 
-    it(`should have as title 'diagnostics-web'`, () => {
-        const fixture = TestBed.createComponent(AppComponent);
-        const app = fixture.componentInstance;
-        expect(app.title).toEqual('diagnostics-web');
-    });
-
-    it('should render title', () => {
+    it('renders the Material toolbar shell rather than the Angular CLI placeholder', () => {
         const fixture = TestBed.createComponent(AppComponent);
         fixture.detectChanges();
-        const compiled = fixture.nativeElement;
-        expect(compiled.querySelector('.content span').textContent).toContain('diagnostics-web app is running!');
+
+        const compiled: HTMLElement = fixture.nativeElement;
+        expect(compiled.querySelector('mat-toolbar')).not.toBeNull();
+        expect(compiled.textContent).not.toContain('app is running!');
     });
 });
