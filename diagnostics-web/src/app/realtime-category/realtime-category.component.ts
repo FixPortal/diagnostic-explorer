@@ -1,11 +1,11 @@
 import {Component, Input, OnInit} from '@angular/core';
 import {CategoryModel} from '../Model/CategoryModel';
-import {MatSnackBar} from '@angular/material/snack-bar';
-import {MatSnackBarConfig} from '@angular/material/snack-bar/snack-bar-config';
+import {MatLegacySnackBar as MatSnackBar} from '@angular/material/legacy-snack-bar';
+import {MatLegacySnackBarConfig as MatSnackBarConfig} from '@angular/material/legacy-snack-bar';
 import {Clipboard} from '@angular/cdk/clipboard';
 import {PropModel} from '../Model/PropModel';
 import {SetPropertyDialogComponent} from '../set-property-dialog/set-property-dialog.component';
-import {MatDialog} from '@angular/material/dialog';
+import {MatLegacyDialog as MatDialog} from '@angular/material/legacy-dialog';
 import {PromptData, PromptResult} from '../util/PromptResult';
 import {SubCat} from '../Model/SubCat';
 import {ExecOperationsModel} from '../Model/ExecOperationsModel';

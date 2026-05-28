@@ -1,4 +1,4 @@
-﻿import {Injectable} from '@angular/core';
+import {Injectable} from '@angular/core';
 import {getErrorMessage, today} from '../util/util';
 import {RetroQuery, RetroSearchResult} from './RetroQuery';
 import {DatePipe} from '@angular/common';
@@ -8,8 +8,7 @@ import * as _ from 'lodash';
 import {Watch} from '../util/Watch';
 import {DiagHubService} from '../services/diag-hub.service';
 import {plainToInstance} from 'class-transformer';
-import {MatSnackBar} from '@angular/material/snack-bar';
-import {askConfirmation} from '@angular/cli/utilities/prompt';
+import {MatLegacySnackBar as MatSnackBar} from '@angular/material/legacy-snack-bar';
 import {DiagProcess} from './DiagProcess';
 
 @Injectable()

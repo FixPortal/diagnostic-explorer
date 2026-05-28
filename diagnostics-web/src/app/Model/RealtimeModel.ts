@@ -1,4 +1,4 @@
-﻿import {DiagProcess} from './DiagProcess';
+import {DiagProcess} from './DiagProcess';
 import {of, Subscription, timer} from 'rxjs';
 import {Null} from '../util/Null';
 import {Watch} from '../util/Watch';
@@ -11,9 +11,9 @@ import {CategoryModel} from './CategoryModel';
 import {EventModel} from './EventModel';
 import {PropModel} from './PropModel';
 import {SetPropertyRequest} from './SetPropertyRequest';
-import {MatDialog} from '@angular/material/dialog';
+import {MatLegacyDialog as MatDialog} from '@angular/material/legacy-dialog';
 import {InfoDialogComponent} from '../info-dialog/info-dialog.component';
-import {MatSnackBar} from '@angular/material/snack-bar';
+import {MatLegacySnackBar as MatSnackBar} from '@angular/material/legacy-snack-bar';
 import {plainToInstance} from 'class-transformer';
 import {DiagHubService} from '../services/diag-hub.service';
 import {DatePipe} from '@angular/common';
