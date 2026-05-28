@@ -1,19 +1,23 @@
 <div>
-    <button (click)="region?.toggleExpanded()">{{ region?.expanded ? '-' : '+' }}</button>
-    {{ region?.firstLine }}
+  <button (click)="region?.toggleExpanded()">{{ region?.expanded ? '-' : '+' }}</button>
+  {{ region?.firstLine }}
 </div>
 <div>{{ region?.displayText }}</div>
-<div class="ml-10" *ngIf="region?.expanded">
-    <app-collapsible-region *ngFor="let child of region?.childRegions" [region]="child"></app-collapsible-region>
-</div>
+@if (region?.expanded) {
+  <div class="ml-10">
+    @for (child of region?.childRegions; track child) {
+      <app-collapsible-region [region]="child"></app-collapsible-region>
+    }
+  </div>
+}
 
 <!--
 
 <table class="h-full flex flex-col items-stretch bg-neutral-900 text-neutral-300 resize-none">
   <tr class="grid h-full v-full flex flex-col items-stretch">
     <mat-expansion-panel class="no-padding grid h-full v-full flex flex-col items-stretch"
-                         [expanded]="region?.expanded"
-                         *ngIf="region?.hasChildren()">
+      [expanded]="region?.expanded"
+      *ngIf="region?.hasChildren()">
       <mat-expansion-panel-header class="no-padding">
         {{region?.firstLine}}
       </mat-expansion-panel-header>

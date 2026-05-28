@@ -11,7 +11,7 @@ import {Clipboard} from '@angular/cdk/clipboard';
 import {DiagHubService} from '../services/diag-hub.service';
 
 export class ExecOperationsModel {
-    finished = new Subject();
+    finished = new Subject<void>();
     readonly operations: OperationModel[] = [];
     activeOperation?: OperationModel;
     results = '';
