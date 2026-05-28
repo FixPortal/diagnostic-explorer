@@ -1,93 +1,99 @@
 <div class="text-sm h-full">
-    <div class="grid grid-cols-1 gap-4 m-4">
+  <div class="grid grid-cols-1 gap-4 m-4">
 
-        <mat-form-field appearance="outline">
-            <mat-label>Max Records</mat-label>
-            <mat-select [(value)]="model.maxRecords">
-                <mat-option [value]="1000">1,000</mat-option>
-                <mat-option [value]="5000">5,000</mat-option>
-                <mat-option [value]="10000">10,000</mat-option>
-                <mat-option [value]="20000">20,000</mat-option>
-            </mat-select>
-        </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Max Records</mat-label>
+      <mat-select [(value)]="model.maxRecords">
+        <mat-option [value]="1000">1,000</mat-option>
+        <mat-option [value]="5000">5,000</mat-option>
+        <mat-option [value]="10000">10,000</mat-option>
+        <mat-option [value]="20000">20,000</mat-option>
+      </mat-select>
+    </mat-form-field>
 
-        <mat-form-field appearance="outline">
-            <mat-label [class.default-value-label]="model.minLevel === 0">Min Level</mat-label>
-            <mat-select [(value)]="model.minLevel">
-                <mat-option [value]="0">All</mat-option>
-                <mat-option [value]="10000">Verbose</mat-option>
-                <mat-option [value]="20000">Trace</mat-option>
-                <mat-option [value]="30000">Debug</mat-option>
-                <mat-option [value]="40000">Info</mat-option>
-                <mat-option [value]="50000">Notice</mat-option>
-                <mat-option [value]="60000">Warn</mat-option>
-                <mat-option [value]="70000">Error</mat-option>
-                <mat-option [value]="80000">Severe</mat-option>
-                <mat-option [value]="90000">Critical</mat-option>
-                <mat-option [value]="100000">Alert</mat-option>
-                <mat-option [value]="110000">Fatal</mat-option>
-                <mat-option [value]="120000">Emergency</mat-option>
-            </mat-select>
-        </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label [class.default-value-label]="model.minLevel === 0">Min Level</mat-label>
+      <mat-select [(value)]="model.minLevel">
+        <mat-option [value]="0">All</mat-option>
+        <mat-option [value]="10000">Verbose</mat-option>
+        <mat-option [value]="20000">Trace</mat-option>
+        <mat-option [value]="30000">Debug</mat-option>
+        <mat-option [value]="40000">Info</mat-option>
+        <mat-option [value]="50000">Notice</mat-option>
+        <mat-option [value]="60000">Warn</mat-option>
+        <mat-option [value]="70000">Error</mat-option>
+        <mat-option [value]="80000">Severe</mat-option>
+        <mat-option [value]="90000">Critical</mat-option>
+        <mat-option [value]="100000">Alert</mat-option>
+        <mat-option [value]="110000">Fatal</mat-option>
+        <mat-option [value]="120000">Emergency</mat-option>
+      </mat-select>
+    </mat-form-field>
 
-        <mat-form-field appearance="outline">
-            <mat-label>Machine</mat-label>
-            <input matInput [(ngModel)]="model.machine">
-        </mat-form-field>
-
-
-        <mat-form-field appearance="outline">
-            <mat-label>Process</mat-label>
-            <input matInput [(ngModel)]="model.process">
-        </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Machine</mat-label>
+      <input matInput [(ngModel)]="model.machine">
+    </mat-form-field>
 
 
-        <mat-form-field appearance="outline">
-            <mat-label>User</mat-label>
-            <input matInput [(ngModel)]="model.user">
-        </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Process</mat-label>
+      <input matInput [(ngModel)]="model.process">
+    </mat-form-field>
 
-        <mat-form-field appearance="outline">
-            <mat-label>Message</mat-label>
-            <input matInput [(ngModel)]="model.message">
-        </mat-form-field>
 
-        <mat-form-field appearance="outline">
-            <mat-label>Date</mat-label>
-            <input matInput [matDatepicker]="picker" [(ngModel)]="model.date">
-            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-            <mat-datepicker #picker></mat-datepicker>
-        </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>User</mat-label>
+      <input matInput [(ngModel)]="model.user">
+    </mat-form-field>
 
-        <div class="grid grid-cols-2 gap-2">
-            <mat-form-field appearance="outline" class="">
-                <mat-label>Time</mat-label>
-                <mat-select [(value)]="model.time">
-                    <mat-option *ngFor="let hour of times" [value]="hour">{{ hour | number:'2.0-0' }}:00</mat-option>
-                </mat-select>
-            </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Message</mat-label>
+      <input matInput [(ngModel)]="model.message">
+    </mat-form-field>
 
-            <mat-form-field appearance="outline">
-                <mat-label>Hours</mat-label>
-                <mat-select [(value)]="model.hours">
-                    <mat-option *ngFor="let item of hours" [value]="item.hours">{{ item.text }}</mat-option>
-                </mat-select>
-            </mat-form-field>
-        </div>
+    <mat-form-field appearance="outline">
+      <mat-label>Date</mat-label>
+      <input matInput [matDatepicker]="picker" [(ngModel)]="model.date">
+      <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+      <mat-datepicker #picker></mat-datepicker>
+    </mat-form-field>
 
-        <div class="w-full h-2 px-2">
-            <mat-progress-bar *ngIf="model.currentSearchId" mode="determinate"
-                              value="{{model.percentComplete! * 100}}"></mat-progress-bar>
-        </div>
+    <div class="grid grid-cols-2 gap-2">
+      <mat-form-field appearance="outline" class="">
+        <mat-label>Time</mat-label>
+        <mat-select [(value)]="model.time">
+          @for (hour of times; track hour) {
+            <mat-option [value]="hour">{{ hour | number:'2.0-0' }}:00</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
 
-        <div class="w-full flex flex-row justify-between">
-            <button mat-stroked-button color="primary" (click)="model.reset()">Reset</button>
-            <button mat-stroked-button color="primary" (click)="model.delete()" [disabled]="!model.canDelete">Delete
-            </button>
-            <button mat-stroked-button color="primary"
-                    (click)="model.search()">{{ model.currentSearchId ? 'Cancel' : 'Search' }}
-            </button>
-        </div>
-
+      <mat-form-field appearance="outline">
+        <mat-label>Hours</mat-label>
+        <mat-select [(value)]="model.hours">
+          @for (item of hours; track item) {
+            <mat-option [value]="item.hours">{{ item.text }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
     </div>
+
+    <div class="w-full h-2 px-2">
+      @if (model.currentSearchId) {
+        <mat-progress-bar mode="determinate"
+        value="{{model.percentComplete! * 100}}"></mat-progress-bar>
+      }
+    </div>
+
+    <div class="w-full flex flex-row justify-between">
+      <button mat-stroked-button color="primary" (click)="model.reset()">Reset</button>
+      <button mat-stroked-button color="primary" (click)="model.delete()" [disabled]="!model.canDelete">Delete
+      </button>
+      <button mat-stroked-button color="primary"
+        (click)="model.search()">{{ model.currentSearchId ? 'Cancel' : 'Search' }}
+      </button>
+    </div>
+
+  </div>
 </div>

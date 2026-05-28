@@ -1,65 +1,67 @@
-<mat-accordion *ngIf="category" multi class="w-80 realtime-category">
-
-    <mat-expansion-panel *ngFor="let sub of category.subCats"
-                         [(expanded)]="sub.isExpanded"
-                         class="m-2 bg-neutral-800 p-0">
+@if (category) {
+  <mat-accordion multi class="w-80 realtime-category">
+    @for (sub of category.subCats; track sub) {
+      <mat-expansion-panel
+        [(expanded)]="sub.isExpanded"
+        class="m-2 bg-neutral-800 p-0">
         <mat-expansion-panel-header class="bg-neutral-700" (dblclick)="sub.handleDoubleClick($event)">
-            <mat-panel-title>
-                <div>
-                    {{ sub.name ?? 'General' }}
-                    <button *ngIf="sub.operationSet" (click)="showOperationsDialog($event, sub)">
-                        <mat-icon class="text-xs text-yellow-500">settings</mat-icon>
-                    </button>
-                </div>
-            </mat-panel-title>
-            <mat-panel-description>
-            </mat-panel-description>
-        </mat-expansion-panel-header>
-
-        <fieldset *ngFor="let propGroup of sub.groups" class="mb-2">
-            <legend>{{ propGroup.name ?? 'General' }}</legend>
-
-            <div class="ml-4 grid grid-cols-props-sm lg:grid-cols-props-xl gap-x-2 gap-y-2 items-center">
-                <ng-container *ngFor="let prop of propGroup.properties">
-                    <span *ngIf="!prop.canSet" class="text-stone-400 text-xs">{{ prop.name }}</span>
-                    <button *ngIf="prop.canSet" class="text-blue-500 text-xs text-left"
-                            (click)="showSetPropertyDialog(prop)">{{ prop.name }}
-                    </button>
-                    <span class="prop-value" (dblclick)="handleDoubleClick(prop, $event)"
-                          [matTooltip]="prop.value" [matTooltipShowDelay]="0" matTooltipPosition="below"
-                          matTooltipClass="tooltips">{{ prop.value }}</span>
-                </ng-container>
+          <mat-panel-title>
+            <div>
+              {{ sub.name ?? 'General' }}
+              @if (sub.operationSet) {
+                <button (click)="showOperationsDialog($event, sub)">
+                  <mat-icon class="text-xs text-yellow-500">settings</mat-icon>
+                </button>
+              }
             </div>
-
-        </fieldset>
-
-    </mat-expansion-panel>
-
-    <ng-container class="grid" *ngFor="let evt of category.eventSinks">
-
+          </mat-panel-title>
+          <mat-panel-description>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+        @for (propGroup of sub.groups; track propGroup) {
+          <fieldset class="mb-2">
+            <legend>{{ propGroup.name ?? 'General' }}</legend>
+            <div class="ml-4 grid grid-cols-props-sm lg:grid-cols-props-xl gap-x-2 gap-y-2 items-center">
+              @for (prop of propGroup.properties; track prop) {
+                @if (!prop.canSet) {
+                  <span class="text-stone-400 text-xs">{{ prop.name }}</span>
+                }
+                @if (prop.canSet) {
+                  <button class="text-blue-500 text-xs text-left"
+                    (click)="showSetPropertyDialog(prop)">{{ prop.name }}
+                  </button>
+                }
+                <span class="prop-value" (dblclick)="handleDoubleClick(prop, $event)"
+                  [matTooltip]="prop.value" [matTooltipShowDelay]="0" matTooltipPosition="below"
+                matTooltipClass="tooltips">{{ prop.value }}</span>
+              }
+            </div>
+          </fieldset>
+        }
+      </mat-expansion-panel>
+    }
+    @for (evt of category.eventSinks; track evt) {
+      <ng-container class="grid">
         <mat-expansion-panel [(expanded)]="evt.isExpanded"
-                             (dblclick)="evt.handleDoubleClick($event)"
-                             class="grid m-2 bg-neutral-800 m-2 p-0 row-start-1 col-start-1">
-            <mat-expansion-panel-header class="bg-neutral-700">
-                <mat-panel-title>
-                    <div class="w-full grid">
-                        <span class="col-start-1 row-start-1 justify-self-start whitespace-nowrap">{{ evt.name }}</span>
-
-                        <span class="col-start-1 row-start-1 justify-self-center self-center text-xs opacity-50 h-4 flex-grow-0 whitespace-nowrap">{{ evt?.message }}</span>
-
-                        <div class="col-start-1 row-start-1 justify-self-end self-center h-full text-xs flex items-center"
-                             (click)="handleClick($event)" (keydown)="$event.cancelBubble = true"
-                             (dblclick)="handleClick($event)">
-                            <app-event-filter [(filterVisible)]="evt.filterVisible"
-                                              [(criteria)]="evt.filterCriteria"></app-event-filter>
-                        </div>
-                    </div>
-                </mat-panel-title>
-
-            </mat-expansion-panel-header>
-
-            <app-realtime-events [sink]="evt"></app-realtime-events>
+          (dblclick)="evt.handleDoubleClick($event)"
+          class="grid m-2 bg-neutral-800 m-2 p-0 row-start-1 col-start-1">
+          <mat-expansion-panel-header class="bg-neutral-700">
+            <mat-panel-title>
+              <div class="w-full grid">
+                <span class="col-start-1 row-start-1 justify-self-start whitespace-nowrap">{{ evt.name }}</span>
+                <span class="col-start-1 row-start-1 justify-self-center self-center text-xs opacity-50 h-4 flex-grow-0 whitespace-nowrap">{{ evt?.message }}</span>
+                <div class="col-start-1 row-start-1 justify-self-end self-center h-full text-xs flex items-center"
+                  (click)="handleClick($event)" (keydown)="$event.cancelBubble = true"
+                  (dblclick)="handleClick($event)">
+                  <app-event-filter [(filterVisible)]="evt.filterVisible"
+                  [(criteria)]="evt.filterCriteria"></app-event-filter>
+                </div>
+              </div>
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-realtime-events [sink]="evt"></app-realtime-events>
         </mat-expansion-panel>
-
-    </ng-container>
-</mat-accordion>
+      </ng-container>
+    }
+  </mat-accordion>
+}

@@ -1,36 +1,35 @@
 <div class="max-h-80 grid min-h-20 overflow-auto realtime-events">
 
-    <span *ngIf="sink?.filteredEvents?.length == 0" class="place-self-center">No events</span>
+  @if (sink?.filteredEvents?.length == 0) {
+    <span class="place-self-center">No events</span>
+  }
 
-    <table mat-table *ngIf="sink && sink?.filteredEvents?.length" [dataSource]="sink.filteredEvents" class="w-full">
-
-        <ng-container matColumnDef="id">
-            <th mat-header-cell class="pl-2" *matHeaderCellDef>Id</th>
-            <td mat-cell class="pl-2" *matCellDef="let item">{{ item.id }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="date">
-            <th mat-header-cell class="pl-2" *matHeaderCellDef>Date</th>
-            <td mat-cell class="pl-2 whitespace-nowrap"
-                *matCellDef="let item">{{ item.date | date:'d MMM yyy HH:mm:ss' }}
-            </td>
-        </ng-container>
-
-        <ng-container matColumnDef="level">
-            <th mat-header-cell class="pl-2" *matHeaderCellDef>Level</th>
-            <td mat-cell class="pl-2 pr-2" *matCellDef="let item">{{ item.level | levelName }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="message">
-            <th mat-header-cell class="pl-2 w-full" *matHeaderCellDef>Message</th>
-            <td mat-cell class="pl-2 pr-2 w-full" *matCellDef="let item">{{ item.message }}</td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="columnNames; sticky: true" class="h-8"></tr>
-        <tr mat-row *matRowDef="let item; columns: columnNames"
-            (mouseover)="realtime.handleMouseOver(item, $event)"
-            (click)="realtime.setCurrentEvent(item)"
-            class="cursor-pointer h-6 text-black noselect event-level-{{item.level | levelName | lowercase}}"
-            [class.font-bold]="item.isSelected"></tr>
+  @if (sink && sink?.filteredEvents?.length) {
+    <table mat-table [dataSource]="sink.filteredEvents" class="w-full">
+      <ng-container matColumnDef="id">
+        <th mat-header-cell class="pl-2" *matHeaderCellDef>Id</th>
+        <td mat-cell class="pl-2" *matCellDef="let item">{{ item.id }}</td>
+      </ng-container>
+      <ng-container matColumnDef="date">
+        <th mat-header-cell class="pl-2" *matHeaderCellDef>Date</th>
+        <td mat-cell class="pl-2 whitespace-nowrap"
+          *matCellDef="let item">{{ item.date | date:'d MMM yyy HH:mm:ss' }}
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="level">
+        <th mat-header-cell class="pl-2" *matHeaderCellDef>Level</th>
+        <td mat-cell class="pl-2 pr-2" *matCellDef="let item">{{ item.level | levelName }}</td>
+      </ng-container>
+      <ng-container matColumnDef="message">
+        <th mat-header-cell class="pl-2 w-full" *matHeaderCellDef>Message</th>
+        <td mat-cell class="pl-2 pr-2 w-full" *matCellDef="let item">{{ item.message }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columnNames; sticky: true" class="h-8"></tr>
+      <tr mat-row *matRowDef="let item; columns: columnNames"
+        (mouseover)="realtime.handleMouseOver(item, $event)"
+        (click)="realtime.setCurrentEvent(item)"
+        class="cursor-pointer h-6 text-black noselect event-level-{{item.level | levelName | lowercase}}"
+      [class.font-bold]="item.isSelected"></tr>
     </table>
+  }
 </div>
