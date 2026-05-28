@@ -13,7 +13,7 @@ import {RealtimeNavComponent} from './realtime-nav/realtime-nav.component';
 import {RealtimeDisplayComponent} from './realtime-display/realtime-display.component';
 import {MatIconModule} from "@angular/material/icon";
 import {MatButtonModule} from "@angular/material/button";
-import {HttpClientModule} from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import {MatTableModule} from '@angular/material/table';
 import {MatInputModule} from '@angular/material/input';
 import {MatListModule} from '@angular/material/list';
@@ -44,8 +44,7 @@ import {getBaseLocation} from "./util/util";
 import {BASE_API_URL} from "../injectionTokens";
 import {environment} from "../environments/environment";
 
-@NgModule({
-    declarations: [
+@NgModule({ declarations: [
         AppComponent,
         RetroNavComponent,
         RetroDisplayComponent,
@@ -61,8 +60,7 @@ import {environment} from "../environments/environment";
         LevelNamePipe,
         CollapsibleRegionComponent
     ],
-    imports: [
-        BrowserModule,
+    bootstrap: [AppComponent], imports: [BrowserModule,
         AppRoutingModule,
         MatDialogModule,
         MatTabsModule,
@@ -72,7 +70,6 @@ import {environment} from "../environments/environment";
         MatIconModule,
         MatButtonModule,
         MatSnackBarModule,
-        HttpClientModule,
         MatTableModule,
         MatInputModule,
         FormsModule,
@@ -86,15 +83,12 @@ import {environment} from "../environments/environment";
         MatNativeDateModule,
         MatProgressBarModule,
         AngularSplitModule,
-        MatListModule
-    ],
-    providers: [
-        {provide: MAT_DATE_LOCALE, useValue: 'en-GB'},
-        {provide: APP_BASE_HREF, useFactory: getBaseLocation},
-        {provide: BASE_API_URL, useValue: environment.apiRoot},
-        DatePipe
-    ],
-    bootstrap: [AppComponent]
-})
+        MatListModule], providers: [
+        { provide: MAT_DATE_LOCALE, useValue: 'en-GB' },
+        { provide: APP_BASE_HREF, useFactory: getBaseLocation },
+        { provide: BASE_API_URL, useValue: environment.apiRoot },
+        DatePipe,
+        provideHttpClient(withInterceptorsFromDi())
+    ] })
 export class AppModule {
 }
