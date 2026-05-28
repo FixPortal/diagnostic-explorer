@@ -140,6 +140,14 @@ The core library is covered by an xUnit v3 suite under
 part of `DiagnosticExplorer.sln` and runs on every push/PR via the
 `dotnet-tests` GitHub Actions workflow.
 
+Coverage spans the public surface — `PropertyBag`/`Property`/`Category`,
+`ProtobufUtil` wire round-tripping, the JSON converters, `AttributeUtil`,
+`WeakReferenceHash`, `EventSink`/`EventSinkRepo`, and the `TraceScope` tracing
+hierarchy — and two internal helpers, `ScopeStack` and `TypeUtil`. The library
+grants the test project access to its internals via an `InternalsVisibleTo`
+entry in `DiagnosticExplorer.csproj`; the generated attribute ships in the
+assembly but only names the test project, so it exposes nothing else.
+
 ```bash
 dotnet test tests/DiagnosticExplorer.UnitTests/DiagnosticExplorer.UnitTests.csproj
 ```

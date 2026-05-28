@@ -1,0 +1,130 @@
+using System;
+using AwesomeAssertions;
+using DiagnosticExplorer;
+using Xunit;
+
+namespace DiagnosticExplorer.UnitTests;
+
+/// <summary>
+/// TraceScope is the library's hierarchical tracing primitive: scopes nest via an
+/// AsyncLocal stack, only the root scope emits on dispose, and the rendered output can
+/// collapse fast child scopes to a single BEGIN/END line. These tests inject the trace
+/// action to capture the rendered text and assert on the stable structural markers
+/// (BEGIN/END, the suppression "*", trace lines) rather than the timing values, which are
+/// wall-clock dependent. Every scope is disposed via using, so the AsyncLocal stack returns
+/// to empty after each test.
+/// </summary>
+public class TraceScopeTests
+{
+    /// <summary>
+    /// Outside any scope there is nothing to attach to, so the static Trace is a no-op that
+    /// returns null — callers can trace unconditionally without guarding for "no active scope".
+    /// </summary>
+    [Fact]
+    public void Trace_OutsideAnyScope_ReturnsNull()
+    {
+        TraceScope.Current.Should().BeNull();
+
+        TraceScope.Trace("orphan").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Entering a scope makes it Current; leaving it (dispose) clears Current back to null.
+    /// This is the contract the AsyncLocal stack exists to provide.
+    /// </summary>
+    [Fact]
+    public void Current_TracksTheActiveScope_AndClearsOnDispose()
+    {
+        using (var scope = new TraceScope(_ => { }))
+        {
+            TraceScope.Current.Should().BeSameAs(scope);
+        }
+
+        TraceScope.Current.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Nested scopes form a stack: the inner scope is Current while open, and disposing it
+    /// restores the outer scope as Current — verifying push/pop ordering through the public API.
+    /// </summary>
+    [Fact]
+    public void NestedScopes_RestoreOuterScopeOnInnerDispose()
+    {
+        using var outer = new TraceScope(_ => { });
+
+        using (var inner = new TraceScope(_ => { }))
+        {
+            TraceScope.Current.Should().BeSameAs(inner);
+        }
+
+        TraceScope.Current.Should().BeSameAs(outer);
+    }
+
+    /// <summary>
+    /// The root scope, on dispose, renders its name and every traced line and hands the text
+    /// to its trace action — the actual diagnostic output a consumer sees. Asserts the BEGIN/END
+    /// framing and that both traced messages appear.
+    /// </summary>
+    [Fact]
+    public void RootScope_OnDispose_RendersBeginEndAndTracedLines()
+    {
+        string? captured = null;
+
+        using (new TraceScope("Work", s => captured = s))
+        {
+            TraceScope.Trace("step one");
+            TraceScope.Trace("step two");
+        }
+
+        captured.Should().NotBeNull();
+        captured.Should().Contain("BEGIN Work");
+        captured.Should().Contain("step one");
+        captured.Should().Contain("step two");
+        captured.Should().Contain("END Work");
+    }
+
+    /// <summary>
+    /// Only the root scope emits on dispose; a nested child stays silent unless it is created
+    /// with forceTrace. This is what keeps a deep call tree from emitting one trace per frame —
+    /// the whole tree is rendered once, by the root. Parameterized over the forceTrace flag.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void ChildScope_EmitsOnDisposeOnlyWhenForced(bool forceTrace, bool expectedEmit)
+    {
+        var childEmitted = false;
+
+        using var root = new TraceScope("Root", _ => { });
+
+        using (new TraceScope("Child", _ => childEmitted = true, forceTrace))
+        {
+        }
+
+        childEmitted.Should().Be(expectedEmit);
+    }
+
+    /// <summary>
+    /// A child whose duration is under SuppressDetailThreshold is collapsed in the root's
+    /// output to a single "BEGIN/END* Child" line, and its own traced detail is omitted — the
+    /// noise-reduction feature for fast operations. A 10-minute threshold guarantees the
+    /// microsecond-long child is always under it, keeping the test deterministic.
+    /// </summary>
+    [Fact]
+    public void ChildScope_UnderSuppressThreshold_IsCollapsedInRootOutput()
+    {
+        string? captured = null;
+
+        using (new TraceScope("Root", s => captured = s))
+        {
+            using (new TraceScope("Child", (Action<string>?)null) { SuppressDetailThreshold = TimeSpan.FromMinutes(10) })
+            {
+                TraceScope.Trace("hidden detail");
+            }
+        }
+
+        captured.Should().NotBeNull();
+        captured.Should().Contain("BEGIN/END* Child");
+        captured.Should().NotContain("hidden detail");
+    }
+}
