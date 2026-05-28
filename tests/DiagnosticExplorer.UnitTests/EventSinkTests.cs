@@ -1,0 +1,100 @@
+using System.Linq;
+using AwesomeAssertions;
+using DiagnosticExplorer;
+using Xunit;
+
+namespace DiagnosticExplorer.UnitTests;
+
+/// <summary>
+/// EventSink and EventSinkRepo are the in-process event store the diagnostic UI streams
+/// from. Sinks are keyed by name+category and created on demand; logging stamps identity
+/// and an incrementing id, and a multi-line message with no detail is split so the list
+/// shows a one-line summary with the full text behind it. Tests drive a fresh repo (not the
+/// shared Default) so they stay isolated, and assert through the public surface.
+/// </summary>
+public class EventSinkTests
+{
+    /// <summary>
+    /// GetSink is get-or-create keyed on name+category: the same pair returns the same sink
+    /// (so events accumulate in one place), and a different category yields a distinct sink.
+    /// </summary>
+    [Fact]
+    public void GetSink_SameKeyReturnsSameSink_DifferentCategoryReturnsDistinct()
+    {
+        var repo = new EventSinkRepo();
+
+        var sink = repo.GetSink("svc", "cat");
+
+        repo.GetSink("svc", "cat").Should().BeSameAs(sink);
+        repo.GetSink("svc", "other").Should().NotBeSameAs(sink);
+    }
+
+    /// <summary>
+    /// Logging stamps the sink's name/category onto the event and assigns ids that increment
+    /// from one, so the UI can identify origin and order. Confirms the per-sink id counter.
+    /// </summary>
+    [Fact]
+    public void LogEvent_StampsSinkIdentityAndIncrementsIds()
+    {
+        var repo = new EventSinkRepo();
+        var sink = repo.GetSink("svc", "cat");
+
+        sink.Info("first");
+        sink.Info("second");
+
+        var events = sink.Events.ToArray();
+        events.Select(e => e.Id).Should().Equal(1, 2);
+        events.Should().OnlyContain(e => e.SinkName == "svc" && e.SinkCategory == "cat");
+    }
+
+    /// <summary>
+    /// When a message has no separate detail but spans multiple lines, the first line becomes
+    /// the message and the whole text becomes the detail — the summary/detail split the event
+    /// list depends on. A single-line message is left untouched (detail stays empty).
+    /// </summary>
+    [Fact]
+    public void LogEvent_MultilineMessageWithNoDetail_SplitsFirstLineIntoMessage()
+    {
+        var repo = new EventSinkRepo();
+        var sink = repo.GetSink("svc", "cat");
+
+        sink.Error("Connection failed\nstack frame 1\nstack frame 2");
+        sink.Error("single line");
+
+        var events = sink.Events.ToArray();
+        events[0].Message.Should().Be("Connection failed");
+        events[0].Detail.Should().Be("Connection failed\nstack frame 1\nstack frame 2");
+        events[1].Message.Should().Be("single line");
+        events[1].Detail.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Repo-level LogEvent routes a pre-built event to the sink named by its own
+    /// SinkName/SinkCategory — the path used when events arrive already addressed (e.g. from
+    /// the log4net appender) rather than via a sink's typed Info/Warn helpers.
+    /// </summary>
+    [Fact]
+    public void RepoLogEvent_RoutesEventToMatchingSink()
+    {
+        var repo = new EventSinkRepo();
+        var evt = new SystemEvent { SinkName = "svc", SinkCategory = "cat", Message = "hi", Id = 5 };
+
+        repo.LogEvent(evt);
+
+        repo.GetSink("svc", "cat").Events.Should().ContainSingle().Which.Should().BeSameAs(evt);
+    }
+
+    /// <summary>
+    /// GetEvents aggregates across every sink, which is how the UI gets the full backlog on
+    /// connect. Logging to two distinct sinks must surface both events.
+    /// </summary>
+    [Fact]
+    public void GetEvents_AggregatesAcrossAllSinks()
+    {
+        var repo = new EventSinkRepo();
+        repo.GetSink("svc", "a").Info("one");
+        repo.GetSink("svc", "b").Info("two");
+
+        repo.GetEvents().Select(e => e.Message).Should().BeEquivalentTo(new[] { "one", "two" });
+    }
+}
