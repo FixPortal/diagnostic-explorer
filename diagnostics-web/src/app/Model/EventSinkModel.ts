@@ -4,7 +4,15 @@ import {CategoryModel} from './CategoryModel';
 import {EventModel} from './EventModel';
 import {FilterCriteria} from './FilterCriteria';
 import {Watch} from '../util/Watch';
-import pluralize from 'pluralize';
+import * as pluralizeModule from 'pluralize';
+
+// pluralize is a CommonJS module whose export *is* the function. A default
+// import (`import pluralize from 'pluralize'`) only resolves under the
+// production bundler's synthesized interop; under ts-jest's CommonJS emit
+// (esModuleInterop off, to keep lodash's callable `_(...)` namespace working)
+// it comes back undefined. Resolving the function explicitly works in both.
+const pluralize = ((pluralizeModule as any).default ?? pluralizeModule) as
+    (word: string, count?: number, inclusive?: boolean) => string;
 
 export class EventSinkModel {
     name = '';
