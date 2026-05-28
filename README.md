@@ -133,6 +133,20 @@ npm run build
 dependency graph without an explicit flag (the Angular build tooling's peer
 range for Tailwind lags the installed Tailwind 3).
 
+### .NET unit tests
+
+The core library is covered by an xUnit v3 suite under
+`tests/DiagnosticExplorer.UnitTests` (NSubstitute + AwesomeAssertions). It is
+part of `DiagnosticExplorer.sln` and runs on every push/PR via the
+`dotnet-tests` GitHub Actions workflow.
+
+```bash
+dotnet test tests/DiagnosticExplorer.UnitTests/DiagnosticExplorer.UnitTests.csproj
+```
+
+The test project targets `net8.0` and references only the `netstandard2.0`
+core library, so it runs cross-platform without the Windows-only samples.
+
 ### Frontend tests and mutation analysis
 
 The dashboard is tested with **Jest** (`jest-preset-angular`); Karma has been
