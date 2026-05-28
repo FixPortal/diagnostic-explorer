@@ -2,7 +2,7 @@ import {Component, OnInit, ViewChild} from '@angular/core';
 import {AppModel} from '../Model/AppModel';
 import {DiagProcess} from '../Model/DiagProcess';
 import {RealtimeModel} from '../Model/RealtimeModel';
-import {MatMenuTrigger} from '@angular/material/menu';
+import {MatLegacyMenuTrigger as MatMenuTrigger} from '@angular/material/legacy-menu';
 
 @Component({
     selector: 'app-realtime-nav',
@@ -33,7 +33,7 @@ export class RealtimeNavComponent implements OnInit {
         this.contextMenuPosition.x = event.clientX + 'px';
         this.contextMenuPosition.y = event.clientY + 'px';
         this.contextMenu!.menuData = {'item': item};
-        this.contextMenu!.menu.focusFirstItem('mouse');
+        this.contextMenu!.menu?.focusFirstItem('mouse');
         this.contextMenu!.openMenu();
     }
 }
