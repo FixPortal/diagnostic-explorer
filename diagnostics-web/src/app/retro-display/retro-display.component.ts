@@ -4,7 +4,8 @@ import {RetroModel} from '../Model/RetroModel';
 @Component({
     selector: 'app-retro-display',
     templateUrl: './retro-display.component.html',
-    styleUrls: ['./retro-display.component.scss']
+    styleUrls: ['./retro-display.component.scss'],
+    standalone: false
 })
 export class RetroDisplayComponent implements OnInit {
 

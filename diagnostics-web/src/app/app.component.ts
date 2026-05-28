@@ -8,8 +8,8 @@ import {ScopeNode} from "./Model/ScopeNode";
     selector: 'app-root',
     templateUrl: './app.component.html',
     styleUrls: ['./app.component.scss'],
-    providers: [AppModel, RealtimeModel, RetroModel]
-
+    providers: [AppModel, RealtimeModel, RetroModel],
+    standalone: false
 })
 export class AppComponent {
     title = 'diagnostics-web';

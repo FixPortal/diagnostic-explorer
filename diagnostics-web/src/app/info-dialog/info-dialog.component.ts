@@ -5,7 +5,8 @@ import {InfoDialogData} from '../Model/InfoDialogData';
 @Component({
     selector: 'app-info-dialog',
     templateUrl: './info-dialog.component.html',
-    styleUrls: ['./info-dialog.component.scss']
+    styleUrls: ['./info-dialog.component.scss'],
+    standalone: false
 })
 export class InfoDialogComponent implements OnInit {
 

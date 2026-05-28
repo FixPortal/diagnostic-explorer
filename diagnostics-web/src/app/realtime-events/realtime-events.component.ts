@@ -5,7 +5,8 @@ import {RealtimeModel} from '../Model/RealtimeModel';
 @Component({
     selector: 'app-realtime-events',
     templateUrl: './realtime-events.component.html',
-    styleUrls: ['./realtime-events.component.scss']
+    styleUrls: ['./realtime-events.component.scss'],
+    standalone: false
 })
 export class RealtimeEventsComponent implements OnInit {
 

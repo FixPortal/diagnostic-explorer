@@ -5,7 +5,8 @@ import {Watch} from '../util/Watch';
 @Component({
     selector: 'app-event-filter',
     templateUrl: './event-filter.component.html',
-    styleUrls: ['./event-filter.component.scss']
+    styleUrls: ['./event-filter.component.scss'],
+    standalone: false
 })
 export class EventFilterComponent implements OnInit {
 
