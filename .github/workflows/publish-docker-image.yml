@@ -41,6 +41,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: diagnostics-web/package-lock.json
+
+      - name: Frontend validation
+        working-directory: diagnostics-web
+        run: |
+          npm ci
+          npm test -- --runInBand
+          npm run build
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

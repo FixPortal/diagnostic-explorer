@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "build:prod": "NODE_ENV=production ng build --prod",
-    "test": "jest --runInBand --coverage"
+    "test": "jest --runInBand --coverage",
+    "test:mutation": "stryker run stryker.conf.json"
   },
   "private": true,
   "dependencies": {
@@ -35,6 +36,8 @@
     "@angular-devkit/build-angular": "^21.2.13",
     "@angular/cli": "^21.2.13",
     "@angular/compiler-cli": "^21.2.15",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/jest-runner": "^9.6.1",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.14.178",
     "@types/node": "^12.20.37",

@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "jest",
+  "jest": {
+    "projectType": "custom",
+    "configFile": "jest.config.ts"
+  },
+  "reporters": ["html", "json", "progress", "clear-text"],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/app/**/*.ts",
+    "!src/app/**/*.spec.ts",
+    "!src/main.ts",
+    "!src/environments/*.ts"
+  ],
+  "tempDirName": "StrykerOutput/.stryker-tmp",
+  "thresholds": {
+    "high": 80,
+    "low": 70,
+    "break": 0
+  }
+}
