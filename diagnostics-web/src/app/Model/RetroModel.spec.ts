@@ -1,0 +1,108 @@
+import {DatePipe} from '@angular/common';
+import {RetroModel} from './RetroModel';
+import {Level} from './Level';
+
+function makeHub() {
+    return {
+        connectionReady: {subscribe: jest.fn()},
+        startRetroSearch: jest.fn().mockResolvedValue(undefined),
+        cancelRetroSearch: jest.fn().mockResolvedValue(undefined),
+        deleteRecords: jest.fn().mockResolvedValue(0),
+    };
+}
+
+function makeModel(hub = makeHub(), snackBar = {open: jest.fn()}) {
+    const model = new RetroModel(new DatePipe('en-US'), hub as any, snackBar as any);
+    return {model, hub, snackBar};
+}
+
+describe('RetroModel', () => {
+    it('builds a retro query from the entered machine/process/user/message and starts it', async () => {
+        const {model, hub} = makeModel();
+        model.machine = 'SRV01';
+        model.process = 'Worker';
+        model.user = 'chris';
+        model.message = 'timeout';
+
+        await model.search();
+
+        expect(hub.startRetroSearch).toHaveBeenCalledWith(
+            expect.objectContaining({machine: 'SRV01', process: 'Worker', user: 'chris', message: 'timeout'}),
+        );
+        expect(model.currentSearchId).not.toBe(0);
+    });
+
+    it('cancels the in-flight search instead of starting a new one', async () => {
+        const {model, hub} = makeModel();
+        model.currentSearchId = 5;
+        model.searchStartTime = new Date();
+
+        await model.search();
+
+        expect(hub.cancelRetroSearch).toHaveBeenCalledWith(5);
+        expect(hub.startRetroSearch).not.toHaveBeenCalled();
+    });
+
+    it('reports filtered counts in resultsMessage when a filter is active', () => {
+        const {model} = makeModel();
+        model.results = [
+            {level: Level.ERROR, message: 'Timeout', detail: '', msgId: '1'} as any,
+            {level: Level.ERROR, message: 'Connected', detail: '', msgId: '2'} as any,
+        ];
+        model.filterVisible = true;
+        model.filterCriteria.searchText = 'time';
+
+        (model as any).filterResults();
+
+        expect(model.displayResults).toHaveLength(1);
+        expect(model.resultsMessage).toBe('1 of 2 events');
+    });
+
+    it('selects an event and opens the trace scope', () => {
+        const {model} = makeModel();
+        const previous = {isSelected: true} as any;
+        const next = {isSelected: false} as any;
+        model.selectedEvent = previous;
+
+        model.setCurrentEvent(next);
+
+        expect(previous.isSelected).toBe(false);
+        expect(next.isSelected).toBe(true);
+        expect(model.selectedEvent).toBe(next);
+        expect(model.traceScopeVisible).toBe(true);
+    });
+
+    describe('delete', () => {
+        const realConfirm = globalThis.confirm;
+        afterEach(() => {
+            globalThis.confirm = realConfirm;
+        });
+
+        it('deletes the displayed records and reports the count after confirmation', async () => {
+            const hub = makeHub();
+            hub.deleteRecords.mockResolvedValue(2);
+            const {model, snackBar} = makeModel(hub);
+            globalThis.confirm = jest.fn().mockReturnValue(true);
+            model.results = [{msgId: '1'}, {msgId: '2'}] as any;
+
+            await model.delete();
+
+            expect(hub.deleteRecords).toHaveBeenCalledWith(['1', '2']);
+            expect(snackBar.open).toHaveBeenCalledWith(
+                expect.stringContaining('2 records deleted'), '', expect.any(Object),
+            );
+        });
+
+        it('does nothing when the user cancels the confirmation', async () => {
+            const hub = makeHub();
+            const {model, snackBar} = makeModel(hub);
+            globalThis.confirm = jest.fn().mockReturnValue(false);
+            model.results = [{msgId: '1'}] as any;
+
+            await model.delete();
+
+            expect(hub.deleteRecords).not.toHaveBeenCalled();
+            expect(snackBar.open).not.toHaveBeenCalled();
+        });
+    });
+});
