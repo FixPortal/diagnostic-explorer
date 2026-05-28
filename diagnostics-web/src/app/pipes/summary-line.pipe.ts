@@ -1,7 +1,8 @@
 import {Pipe, PipeTransform} from '@angular/core';
 
 @Pipe({
-    name: 'summaryLine'
+    name: 'summaryLine',
+    standalone: false
 })
 export class SummaryLinePipe implements PipeTransform {
 

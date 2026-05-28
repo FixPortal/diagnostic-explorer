@@ -5,7 +5,8 @@ import {MAT_DIALOG_DATA} from '@angular/material/dialog';
 @Component({
     selector: 'app-exec-operations',
     templateUrl: './exec-operations.component.html',
-    styleUrls: ['./exec-operations.component.scss']
+    styleUrls: ['./exec-operations.component.scss'],
+    standalone: false
 })
 export class ExecOperationsComponent implements OnInit {
 

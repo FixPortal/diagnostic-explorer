@@ -191,7 +191,7 @@ export class RetroModel {
                 }
             }
 
-            this.percentComplete += (1 - this.percentComplete ?? 0) / 100;
+            this.percentComplete += (1 - this.percentComplete) / 100;
 
             this.initResultsMessage();
             this.titleMessage = `Searching... ${this.results.length} records`;

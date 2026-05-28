@@ -15,7 +15,8 @@ import {RealtimeModel} from '../Model/RealtimeModel';
 @Component({
     selector: 'app-realtime-category',
     templateUrl: './realtime-category.component.html',
-    styleUrls: ['./realtime-category.component.scss']
+    styleUrls: ['./realtime-category.component.scss'],
+    standalone: false
 })
 export class RealtimeCategoryComponent implements OnInit {
 

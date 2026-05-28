@@ -7,7 +7,8 @@ import {MatMenuTrigger} from '@angular/material/menu';
 @Component({
     selector: 'app-realtime-nav',
     templateUrl: './realtime-nav.component.html',
-    styleUrls: ['./realtime-nav.component.scss']
+    styleUrls: ['./realtime-nav.component.scss'],
+    standalone: false
 })
 export class RealtimeNavComponent implements OnInit {
 

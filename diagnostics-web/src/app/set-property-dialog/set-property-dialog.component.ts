@@ -6,7 +6,8 @@ import {PromptData, PromptResult} from '../util/PromptResult';
 @Component({
     selector: 'app-set-property-dialog',
     templateUrl: './set-property-dialog.component.html',
-    styleUrls: ['./set-property-dialog.component.scss']
+    styleUrls: ['./set-property-dialog.component.scss'],
+    standalone: false
 })
 export class SetPropertyDialogComponent implements OnInit {
 
