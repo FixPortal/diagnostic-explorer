@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
 import {RealtimeModel} from './RealtimeModel';
-import {MatLegacySnackBar as MatSnackBar} from '@angular/material/legacy-snack-bar';
+import {MatSnackBar} from '@angular/material/snack-bar';
 import {RetroModel} from './RetroModel';
 import * as _ from 'lodash';
 import {DiagHubService} from '../services/diag-hub.service';

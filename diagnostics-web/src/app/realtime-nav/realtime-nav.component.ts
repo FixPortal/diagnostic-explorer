@@ -2,7 +2,7 @@ import {Component, OnInit, ViewChild} from '@angular/core';
 import {AppModel} from '../Model/AppModel';
 import {DiagProcess} from '../Model/DiagProcess';
 import {RealtimeModel} from '../Model/RealtimeModel';
-import {MatLegacyMenuTrigger as MatMenuTrigger} from '@angular/material/legacy-menu';
+import {MatMenuTrigger} from '@angular/material/menu';
 
 @Component({
     selector: 'app-realtime-nav',

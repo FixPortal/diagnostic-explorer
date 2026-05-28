@@ -6,16 +6,16 @@
 @import "tailwindcss/utilities";
 
 
-// TODO(v15): As of v15 mat.legacy-core no longer includes default typography styles.
+// TODO(v15): As of v15 mat.core no longer includes default typography styles.
 //  The following line adds:
 //    1. Default typography styles for all components
 //    2. Styles for typography hierarchy classes (e.g. .mat-headline-1)
 //  If you specify typography styles for the components you use elsewhere, you should delete this line.
 //  If you don't need the default component typographies but still want the hierarchy styles,
 //  you can delete this line and instead use:
-//    `@include mat.legacy-typography-hierarchy(mat.define-legacy-typography-config());`
-@include mat.all-legacy-component-typographies();
-@include mat.legacy-core();
+//    `@include mat.typography-hierarchy(mat.define-legacy-typography-config());`
+@include mat.all-component-typographies();
+@include mat.core();
 
 // Define a dark theme
 $dark-primary: mat.define-palette(mat.$blue-palette);
@@ -28,14 +28,14 @@ $dark-theme: mat.define-dark-theme((
 ));
 
 // Apply the dark theme by default
-@include mat.legacy-core-theme($dark-theme);
-@include mat.legacy-button-theme($dark-theme);
-@include mat.legacy-tabs-theme($dark-theme);
+@include mat.core-theme($dark-theme);
+@include mat.button-theme($dark-theme);
+@include mat.tabs-theme($dark-theme);
 @include mat.toolbar-theme($dark-theme);
-@include mat.legacy-select-theme($dark-theme);
+@include mat.select-theme($dark-theme);
 @include mat.datepicker-theme($dark-theme);
-@include mat.legacy-progress-bar-theme($dark-theme);
-@include mat.legacy-checkbox-theme($dark-theme);
+@include mat.progress-bar-theme($dark-theme);
+@include mat.checkbox-theme($dark-theme);
 
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
