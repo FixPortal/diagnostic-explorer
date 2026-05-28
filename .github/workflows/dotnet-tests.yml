@@ -1,0 +1,30 @@
+# Unit tests for the .NET core library (DiagnosticExplorer).
+#
+# Runs the xUnit v3 suite under tests/DiagnosticExplorer.UnitTests. Scoped to the
+# test project (which pulls in only the netstandard2.0 core library) so the run
+# stays on ubuntu and doesn't drag in the Windows-only WidgetSample.
+name: dotnet-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'DiagnosticExplorer/**'
+      - 'tests/**'
+      - '.github/workflows/dotnet-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test tests/DiagnosticExplorer.UnitTests/DiagnosticExplorer.UnitTests.csproj --configuration Release
