@@ -8,7 +8,7 @@ import * as _ from 'lodash';
 import {Watch} from '../util/Watch';
 import {DiagHubService} from '../services/diag-hub.service';
 import {plainToInstance} from 'class-transformer';
-import {MatLegacySnackBar as MatSnackBar} from '@angular/material/legacy-snack-bar';
+import {MatSnackBar} from '@angular/material/snack-bar';
 import {DiagProcess} from './DiagProcess';
 
 @Injectable()
