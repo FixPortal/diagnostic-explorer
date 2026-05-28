@@ -32,16 +32,38 @@ describe('EventFilterComponent', () => {
         expect(emitted.at(-1)).toBe(false);
     });
 
-    it('reflects the search text of an assigned criteria', () => {
-        // NOTE: loadCriteria() copies searchText first, which re-enters via the
-        // searchText @Watch and rebuilds _criteria, so only searchText reliably
-        // round-trips today. We assert just that contract rather than the level
-        // flags, which the component does not currently load back.
+    it('reflects every field of an assigned criteria into its inputs', () => {
         const criteria = new FilterCriteria();
         criteria.searchText = 'disk';
+        criteria.info = true;
+        criteria.notice = true;
+        criteria.warn = true;
+        criteria.error = false;
 
         component.criteria = criteria;
 
+        // loadCriteria() suppresses the @Watch callbacks while copying, so the
+        // level flags survive instead of being clobbered by a re-entrant
+        // onCriteriaChanged() rebuild.
         expect(component.searchText).toBe('disk');
+        expect(component.info).toBe(true);
+        expect(component.notice).toBe(true);
+        expect(component.warn).toBe(true);
+        expect(component.error).toBe(false);
+    });
+
+    it('does not echo criteriaChange while reflecting an inbound binding', () => {
+        const emitted: FilterCriteria[] = [];
+        component.criteriaChange.subscribe(value => emitted.push(value));
+
+        const criteria = new FilterCriteria();
+        criteria.searchText = 'disk';
+        criteria.warn = true;
+
+        component.criteria = criteria;
+
+        // An inbound criteria binding is a load, not a user edit: it must not
+        // fire criteriaChange back at the parent (two-way-binding loop hazard).
+        expect(emitted).toHaveLength(0);
     });
 });

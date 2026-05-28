@@ -70,10 +70,24 @@ export class EventFilterComponent implements OnInit {
     }
 
     private loadCriteria(): void {
-        this.searchText = this._criteria.searchText;
-        this.info = this._criteria.info;
-        this.notice = this._criteria.notice;
-        this.warn = this._criteria.warn;
-        this.error = this._criteria.error;
+        // Reflect an inbound `criteria` binding into the individual fields.
+        // Suppress the @Watch callbacks while doing so: otherwise the first
+        // assignment (searchText) re-enters via its own @Watch and runs
+        // onCriteriaChanged(), which rebuilds _criteria from the still-default
+        // flag fields and clobbers it before the level flags are copied across
+        // — losing everything but searchText. Suppressing also stops this
+        // inbound load from echoing back out as criteriaChange events.
+        const criteria = this._criteria;
+        const wasWatching = this.watchEnabled;
+        this.watchEnabled = false;
+        try {
+            this.searchText = criteria.searchText;
+            this.info = criteria.info;
+            this.notice = criteria.notice;
+            this.warn = criteria.warn;
+            this.error = criteria.error;
+        } finally {
+            this.watchEnabled = wasWatching;
+        }
     }
 }
