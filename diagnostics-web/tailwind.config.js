@@ -1,9 +1,14 @@
 module.exports = {
-    content: ["./src/**/*.{html,js}"],
+    // Include .ts so utility classes referenced from component TypeScript (or inline templates)
+    // aren't purged from the production build.
+    content: ["./src/**/*.{html,ts}"],
 
     important: true,
     // mode: 'jit',
-    darkMode: true, // or 'media' or 'class'
+    // 'media' is a valid Tailwind value (the previous `true` is a v2 value that silently fell
+    // back to media). Switching to 'class' to honour <html class="dark"> is a deliberate visual
+    // change — verify in the running app before doing so.
+    darkMode: 'media',
     theme: {
         screens: {
             'sm': {'min': '640px'},

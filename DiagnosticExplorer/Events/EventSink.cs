@@ -31,55 +31,22 @@ using log4net.Core;
 
 namespace DiagnosticExplorer
 {
-    public class EventSink : IDisposable
+    // Events are bounded by the inline MaxMessages trim in AddSingleEvent. The former static
+    // `sinks` WeakReferenceHash + 20s purge timer were dead code — nothing ever registered a sink
+    // into `sinks` (live sinks live in EventSinkRepo), so the 30-minute age purge never ran.
+    // Removed rather than half-wired (per-instance timers would leak; re-registering into the
+    // static hash reintroduces its collision/concurrency issues).
+    public class EventSink
 	{
 		public const int MaxMessages = 1000;
 		private const int MaxLength = 102400;
-        private static TimeSpan messageLife = TimeSpan.FromMinutes(30);
-        private static WeakReferenceHash<EventSink> sinks = new();
-        private static Timer _timer;
         private EventSinkRepo _repo;
-
-        
-        private static void PurgeAllSinks(object sender)
-        {
-            try
-            {
-                foreach (EventSink sink in sinks.GetItems())
-                    sink.Purge();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex);
-            }
-        }
-
-		static EventSink()
-		{
-			_timer = new Timer(PurgeAllSinks, null, 0, 20000);
-		}
 
 		internal EventSink(EventSinkRepo repo, string name, string category)
         {
             _repo = repo;
 			Name = name;
 			Category = category;
-		}
-
-		~EventSink()
-		{
-			Dispose(false);
-		}
-
-		public void Dispose()
-		{
-			Dispose(true);
-		}
-
-		protected virtual void Dispose(bool disposing)
-		{
-			if (disposing)
-				sinks.Remove(Name);
 		}
 
 		public string Name { get; }
@@ -91,30 +58,6 @@ namespace DiagnosticExplorer
 
         public ConcurrentQueue<SystemEvent> Events { get; } = new();
 
-		private void Purge()
-		{
-            try
-            {
-                while (Events.Count > MaxMessages)
-                    if (!Events.TryDequeue(out _))
-                        break;
-
-                while (Events.TryPeek(out var evt) && ShouldPurge(evt))
-                    if (!Events.TryDequeue(out _))
-                        break;
-            }
-			catch (Exception ex)
-			{
-				Debug.WriteLine(ex);
-			}
-		}
-
-		private bool ShouldPurge(SystemEvent evt)
-        {
-            return DateTime.UtcNow - evt.Date > messageLife;
-        }
-
-	
         public void Info(string message, string detail = null)
         {
             LogEvent(Level.Info.Value, message, detail);

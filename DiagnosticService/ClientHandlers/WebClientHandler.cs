@@ -133,7 +133,12 @@ public class WebClientHandler
         }
         catch (Exception ex)
         {
-            //Debug.WriteLine($"########## Stream event exception {ex}");
+            // Don't swallow silently: a non-cancellation failure here ends event delivery to this
+            // client. In practice it coincides with the SignalR connection dropping (handled by
+            // OnDisconnectedAsync, which removes the web client). Surfacing it makes the otherwise
+            // invisible "events just stopped" case diagnosable. (Automatic stream restart is a
+            // deferred follow-up — it needs loop-guarding to avoid hammering a broken client.)
+            Trace.WriteLine($"WebClientHandler {ConnectionId} event stream failed, delivery stopped: {ex.Message}");
         }
     }
 

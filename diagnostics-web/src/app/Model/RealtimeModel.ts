@@ -60,17 +60,23 @@ export class RealtimeModel {
             connection.on('RemoveProcess', (id: string) => {
                 this.removeProcess(id);
             });
+            // Guard on id: a frame still in flight for a previously-selected process must not
+            // overwrite the currently-selected process's view after the user switches.
             connection.on('ShowDiagnostics', (id: string, response: DiagnosticResponse) => {
-                this.displayRealtimeDiags(response);
+                if (id === this.activeProcess?.id)
+                    this.displayRealtimeDiags(response);
             });
             connection.on('ShowDiagnosticsError', (id: string, message: string) => {
-                this.snackBar.open(message, '', {duration: 2_000});
+                if (id === this.activeProcess?.id)
+                    this.snackBar.open(message, '', {duration: 2_000});
             });
             connection.on('SetEvents', (id: string, events: SystemEvent[]) => {
-                this.setEvents(id, events);
+                if (id === this.activeProcess?.id)
+                    this.setEvents(id, events);
             });
             connection.on('StreamEvents', (id: string, evts: SystemEvent[]) => {
-                this.streamEvents(id, evts);
+                if (id === this.activeProcess?.id)
+                    this.streamEvents(id, evts);
             });
         });
 
