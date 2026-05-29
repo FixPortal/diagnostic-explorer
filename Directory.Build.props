@@ -1,0 +1,11 @@
+<Project>
+  <!-- SonarAnalyzer applied to every project as a private analyzer asset (this repo
+       does not use central package management). Cognitive-complexity (S3776) gate is
+       tuned in .editorconfig; findings are warnings, not build-breaking. -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.27.0.140913">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

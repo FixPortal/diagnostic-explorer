@@ -3,6 +3,11 @@
 # You can learn more about editorconfig here: https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference
 [*.cs]
 
+# SonarAnalyzer cognitive-complexity gate (S3776, threshold 15) — prefer cognitive
+# over cyclomatic complexity, which over-counts flat switch/ternary dispatch.
+# Advisory only: warning, never build-breaking.
+dotnet_diagnostic.S3776.severity = warning
+
 
 #Core editorconfig formatting - indentation
 
