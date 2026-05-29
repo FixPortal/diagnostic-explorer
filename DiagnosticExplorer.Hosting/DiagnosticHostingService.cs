@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using DiagnosticExplorer.Log4Net;
+using log4net;
 using Microsoft.AspNetCore.Http.Connections.Client;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,10 @@ public class DiagnosticHostingService
     : IHostedService
 #endif
 {
+    private static readonly ILog _log = LogManager.GetLogger(typeof(DiagnosticHostingService));
+
+    // Accessed via Interlocked/Volatile; only ever published after StartHosting succeeds so a
+    // failed init can't leave a non-null, half-initialized instance behind.
     private static DiagnosticHostingService _instance;
     private DiagnosticOptions _options;
 
@@ -40,28 +45,45 @@ public class DiagnosticHostingService
     }
 
 
-    public async Task StartAsync(CancellationToken cancel)
+    public Task StartAsync(CancellationToken cancel)
     {
         Debug.WriteLine($"DiagnosticHostingService starting {_options.Enabled} Uri [{_options.Uri}");
         if (_options.Enabled)
-        {
-            _instance = this;
-            StartHosting();
-        }
+            TryStart(this);
+
+        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancel)
     {
+        Interlocked.CompareExchange(ref _instance, null, this);
         return StopHosting();
     }
 
 #endif
 
+    // Claim the singleton slot atomically, then start. Publish stays only if hosting actually
+    // starts: on failure we roll the slot back to null so a later Start can retry and LogEvent
+    // never sees a half-initialized instance.
+    private static void TryStart(DiagnosticHostingService candidate)
+    {
+        if (Interlocked.CompareExchange(ref _instance, candidate, null) != null)
+            return;
 
-    private void StartHosting()
+        if (!candidate.StartHosting())
+            Interlocked.CompareExchange(ref _instance, null, candidate);
+    }
+
+    private bool StartHosting()
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(_options.Uri))
+            {
+                _log.Warn("DiagnosticHostingService not started: no Uri configured");
+                return false;
+            }
+
             DiagnosticRetroAppender.SetLoggingAction(LogEvent);
             SystemStatus.Register();
 
@@ -74,18 +96,26 @@ public class DiagnosticHostingService
                 ProcessName = ResolveProcessName()
             };
 
-            _registrationHandlers = Regex.Split(_options.Uri, @"\s|;|,")
+            RegistrationHandler[] handlers = Regex.Split(_options.Uri, @"\s|;|,")
                 .Select(hubUrl => hubUrl.Trim())
                 .Where(hubUrl => !string.IsNullOrWhiteSpace(hubUrl))
                 .Select(hubUrl => new RegistrationHandler(hubUrl, registration))
                 .ToArray();
 
-            foreach (RegistrationHandler handler in _registrationHandlers)
+            foreach (RegistrationHandler handler in handlers)
                 handler.Start(_configureHttp);
+
+            // Publish only after the full build + start succeeds.
+            _registrationHandlers = handlers;
+            return true;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            // Diagnostics setup must not crash the host, but the failure must be visible (logged,
+            // not swallowed to Debug) and must not leave a half-initialized instance published.
+            _log.Error("DiagnosticHostingService failed to start", ex);
+            DiagnosticRetroAppender.SetLoggingAction(null);
+            return false;
         }
     }
 
@@ -108,44 +138,39 @@ public class DiagnosticHostingService
         try
         {
             DiagnosticRetroAppender.SetLoggingAction(null);
-            await Task.WhenAll(_registrationHandlers.Select(handler => handler.Stop()).ToArray());
+
+            // Null-guard: StartHosting may have failed (or Stop been called without a successful
+            // Start), leaving _registrationHandlers null.
+            RegistrationHandler[] handlers = _registrationHandlers;
+            _registrationHandlers = null;
+            if (handlers != null)
+                await Task.WhenAll(handlers.Select(handler => handler.Stop()).ToArray());
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            _log.Error(ex);
         }
-
-        _registrationHandlers = null;
     }
 
 
     public static void Start(string url, Action<HttpConnectionOptions> configureHttp = null)
     {
-        if (_instance == null)
-        {
-            DiagnosticOptions options = new(url);
-            _instance = new DiagnosticHostingService(options, configureHttp);
-            _instance.StartHosting();
-
-        }
+        DiagnosticOptions options = new(url);
+        TryStart(new DiagnosticHostingService(options, configureHttp));
     }
 
     public static async Task Stop()
     {
-        if (_instance != null)
-        {
-
-            await _instance.StopHosting();
-            _instance = null;
-        }
+        DiagnosticHostingService instance = Interlocked.Exchange(ref _instance, null);
+        if (instance != null)
+            await instance.StopHosting();
     }
 
 
     public static void LogEvent(DiagnosticMsg evt)
     {
-        DiagnosticHostingService instance = _instance;
+        DiagnosticHostingService instance = Volatile.Read(ref _instance);
         if (instance != null)
-            // Debug.WriteLine($"Sending to {instance._registrationHandlers?.Length} registration handlers");
             foreach (RegistrationHandler handler in instance._registrationHandlers ?? Array.Empty<RegistrationHandler>())
                 handler.LogEvent(evt);
     }

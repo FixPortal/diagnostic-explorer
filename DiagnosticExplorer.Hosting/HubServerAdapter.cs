@@ -17,6 +17,10 @@ namespace DiagWebService.Hubs;
 internal class HubServerAdapter : IDiagnosticHubClient
 {
     private static readonly ILog _log = LogManager.GetLogger(typeof(HubServerAdapter));
+
+    // _eventLock serializes subscribe/unsubscribe so a re-subscribe can't orphan the prior
+    // CancellationTokenSource and its still-running SendEventStream loop.
+    private readonly object _eventLock = new();
     private Task _writeEventTask;
     private CancellationTokenSource _writeEventCancel;
 
@@ -44,17 +48,46 @@ internal class HubServerAdapter : IDiagnosticHubClient
 
     public Task SubscribeEvents()
     {
-        _writeEventCancel = new CancellationTokenSource();
-        _writeEventTask = Task.Run(() => SendEventStream(_writeEventCancel.Token), _writeEventCancel.Token);
+        lock (_eventLock)
+        {
+            // Tear down any prior subscription first, else its CTS and SendEventStream loop leak.
+            StopEventStreamNoLock();
+
+            CancellationTokenSource cts = new();
+            _writeEventCancel = cts;
+            _writeEventTask = Task.Run(() => SendEventStream(cts.Token), cts.Token);
+        }
         return Task.CompletedTask;
     }
 
     public Task UnsubscribeEvents()
     {
-        _writeEventCancel?.Cancel();
+        lock (_eventLock)
+        {
+            StopEventStreamNoLock();
+        }
+        return Task.CompletedTask;
+    }
+
+    private void StopEventStreamNoLock()
+    {
+        CancellationTokenSource cts = _writeEventCancel;
+        Task task = _writeEventTask;
         _writeEventCancel = null;
         _writeEventTask = null;
-        return Task.CompletedTask;
+
+        if (cts == null)
+            return;
+
+        try { cts.Cancel(); }
+        catch (ObjectDisposedException) { }
+
+        // Dispose the CTS only after the stream task observes cancellation and completes, so we
+        // never dispose a token still registered in an in-flight await (channel read / Invoke).
+        if (task != null)
+            task.ContinueWith(_ => cts.Dispose(), TaskScheduler.Default);
+        else
+            cts.Dispose();
     }
 
     private async Task SendEventStream(CancellationToken cancel)
