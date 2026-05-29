@@ -28,9 +28,13 @@ public static class Program
 
         // H1: API-key authentication is opt-in. In None mode (the default) no scheme is registered
         // and the hubs stay open — today's behaviour; in ApiKey mode every hub connection must
-        // present a valid key. Read directly from configuration so registration is conditional.
-        AuthMode authMode = builder.Configuration.GetValue<AuthMode>(
-            $"{nameof(DiagServiceSettings)}:{nameof(DiagServiceSettings.Security)}:{nameof(SecuritySettings.AuthMode)}");
+        // present a valid key. Bind the whole settings section ONCE here (rather than a second
+        // GetValue over a hand-built key path) so the registration mode and the pipeline below read
+        // the same value — no drift, and an unparseable AuthMode throws here instead of silently
+        // defaulting to None (fail closed, not open).
+        DiagServiceSettings configuredSettings =
+            builder.Configuration.GetSection(nameof(DiagServiceSettings)).Get<DiagServiceSettings>() ?? new();
+        AuthMode authMode = configuredSettings.Security.AuthMode;
 
         if (authMode != AuthMode.None)
         {
@@ -66,7 +70,21 @@ public static class Program
 
         var app = builder.Build();
 
-        var settings = app.Services.GetService<IOptions<DiagServiceSettings>>().Value;
+        var settings = app.Services.GetRequiredService<IOptions<DiagServiceSettings>>().Value;
+
+        // Fail closed on a half-configured ApiKey mode rather than booting into a broken/insecure
+        // state: no usable key would reject every connection (a silent outage), and an empty CORS
+        // allowlist under auth would otherwise fall through to credentialed any-origin reflection.
+        if (authMode == AuthMode.ApiKey)
+        {
+            SecuritySettings security = settings.Security;
+            if (security.ApiKeys is not { Length: > 0 } || security.ApiKeys.All(string.IsNullOrWhiteSpace))
+                throw new ApplicationException(
+                    "DiagServiceSettings:Security:AuthMode is ApiKey but no non-empty ApiKeys are configured — every hub connection would be rejected. Configure at least one key.");
+            if (security.AllowedCorsOrigins is not { Length: > 0 })
+                throw new ApplicationException(
+                    "DiagServiceSettings:Security:AuthMode is ApiKey but AllowedCorsOrigins is empty — credentialed any-origin CORS is not allowed with auth enabled. Configure the allowlist.");
+        }
 
         if (app.Environment.IsDevelopment())
             app.UseDeveloperExceptionPage();
@@ -107,6 +125,28 @@ public static class Program
         {
             app.UseAuthentication();
             app.UseAuthorization();
+
+            // F9: CORS does not police the WebSocket upgrade, so the allowlist alone doesn't stop a
+            // cross-origin browser (holding a key) opening a raw WS to a hub. Validate the Origin
+            // header explicitly on the hub paths. A browser always sends Origin on the negotiate
+            // POST and the WS upgrade; native clients (the .NET hosting client) send none, so an
+            // absent Origin is allowed and remains gated by the API key.
+            var allowedOrigins = new HashSet<string>(settings.Security.AllowedCorsOrigins, StringComparer.OrdinalIgnoreCase);
+            app.Use(async (context, next) =>
+            {
+                PathString path = context.Request.Path;
+                bool isHub = path.StartsWithSegments("/web-hub") || path.StartsWithSegments("/diagnostics");
+                if (isHub)
+                {
+                    string origin = context.Request.Headers["Origin"].ToString();
+                    if (!string.IsNullOrEmpty(origin) && !allowedOrigins.Contains(origin))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+                }
+                await next();
+            });
         }
 
         app.UseEndpoints(endpoints => {

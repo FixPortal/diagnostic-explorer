@@ -24,7 +24,7 @@ public class RegistrationHandler
 
     private string _url;
     private Registration _registration;
-    private string _apiKey;
+    private readonly string _apiKey;
 
     // _connLock guards the _connection/_hubAdapter pair. They are mutated from three racing
     // contexts — the registration loop (OpenHub/CloseConnection), the SignalR Closed event
@@ -48,6 +48,20 @@ public class RegistrationHandler
         _url = url;
         _registration = registration;
         _apiKey = apiKey;
+
+        // F8: never send the API key over a cleartext transport. Fail fast at construction rather
+        // than silently leaking it on http/ws negotiate + WebSocket requests.
+        if (!string.IsNullOrEmpty(_apiKey) && !IsSecureUrl(_url))
+            throw new ArgumentException(
+                $"An API key is configured but the diagnostic hub URL '{_url}' is not https/wss — the key would be transmitted in cleartext. Use a TLS URL or clear the API key.",
+                nameof(url));
+    }
+
+    private static bool IsSecureUrl(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out Uri uri)
+            && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(uri.Scheme, "wss", StringComparison.OrdinalIgnoreCase));
     }
 
     public void Start(Action<HttpConnectionOptions> configureHttp = null)
@@ -173,15 +187,16 @@ public class RegistrationHandler
         Debug.WriteLine("Diagnostic RegistrationHandler constructing connection");
         HubConnection connection = new HubConnectionBuilder()
             .WithUrl(_url, options => {
+                // Apply the caller's HTTP customisation first (e.g. M23 opt-in integrated auth via
+                // UseDefaultCredentials), THEN layer the API key on top so the required credential
+                // always wins — a caller configureHttp that incidentally sets AccessTokenProvider
+                // can no longer silently drop the key. (M23 / F4)
+                _configureHttp?.Invoke(options);
+
                 // H1: when an API key is configured, send it via the access-token mechanism —
                 // "Authorization: Bearer <key>" on negotiate and "access_token" on the WS upgrade.
                 if (!string.IsNullOrEmpty(_apiKey))
                     options.AccessTokenProvider = () => Task.FromResult(_apiKey);
-
-                // Integrated Windows auth is opt-in via configureHttp (caller can override the
-                // above). The old default forced UseDefaultCredentials=true, forwarding NTLM/Kerberos
-                // to whatever _url resolved to; the hub has no auth by default, so it was a leak. (M23)
-                _configureHttp?.Invoke(options);
             })
             .Build();
 
