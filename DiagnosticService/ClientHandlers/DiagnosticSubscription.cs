@@ -133,13 +133,19 @@ public class DiagnosticSubscription
 
     private void StartRequestLoop()
     {
-        _requestLoopCancelSource = new CancellationTokenSource();
-        _requestLoop = RunLoop(DiagnosticClient!, _requestLoopCancelSource.Token);
+        CancellationTokenSource cts = new();
+        _requestLoopCancelSource = cts;
+        Task loop = RunLoop(DiagnosticClient!, cts.Token);
+        _requestLoop = loop;
+        // Dispose this loop's CTS when the loop actually finishes (not in StopRequestLoop, where
+        // the still-draining loop is using the token) — fixes the per-swap CTS leak.
+        loop.ContinueWith(_ => cts.Dispose(), TaskScheduler.Default);
     }
 
     private void StopRequestLoop()
     {
         _requestLoopCancelSource?.Cancel();
+        _requestLoopCancelSource = null;
         _requestLoop = null;
     }
     
@@ -341,6 +347,10 @@ public class DiagnosticSubscription
                     if (client != null)
                     {
                         DiagnosticResponse diags = await client.GetDiagnostics(cancelToken);
+                        // A cancelled (superseded) loop must not publish stale results or push to
+                        // clients — otherwise a client swap briefly runs two loops racing _lastResponse.
+                        if (cancelToken.IsCancellationRequested)
+                            break;
                         _lastResponse = diags;
                         //Debug.WriteLine($"@@@@@@@@@@ RunLoop got diags {Process.Id} {diags}");
                         await Task.WhenAll(_webClients.Values.Select(client => TrySend(client, diags)));
