@@ -23,8 +23,6 @@ export class ExecOperationsModel {
 
         const opSet: OperationSet | undefined = this.realtimeModel.operationSets.find(os => strEqCI(os.id, this.subCat.operationSet));
 
-        console.log('Found operations', opSet);
-
         if (opSet)
             this.operations = opSet.operations.map(op => new OperationModel(op));
     }

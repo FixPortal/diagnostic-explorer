@@ -23,8 +23,12 @@ namespace DiagnosticExplorer.Log4Net
 
         public DiagnosticRetroAppender()
         {
-            _version = Assembly.GetEntryAssembly()?.GetName().Version.ToString();
-            _process = Process.GetCurrentProcess().ProcessName;
+            // Version can be null for an assembly built without a version → guard with ?. (the
+            // outer ?. only covered a null entry assembly, so this NRE'd the ctor and blocked
+            // logging config init). Dispose the Process handle — only ProcessName is needed.
+            _version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString();
+            using (Process current = Process.GetCurrentProcess())
+                _process = current.ProcessName;
         }
 
         public override void ActivateOptions()

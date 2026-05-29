@@ -81,7 +81,7 @@ export class FilterCriteria {
             if (evt.process && matcher?.test(evt.process)) return true;
             if (matcher?.test(evt.message)) return true;
 
-            return matcher?.test(evt.detail) ?? true;
+            return !matcher || matcher.test(evt.detail ?? '');
         };
     }
 

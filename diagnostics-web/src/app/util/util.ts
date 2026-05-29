@@ -15,14 +15,14 @@
 }
 
 export function getBaseLocation() {
-    //return '/';
-    let paths: string[] = location.pathname.split('/').splice(1, 1);
+    // slice (non-mutating) of the first path segment; splice was returning the removed element by
+    // luck. Still only supports a single-segment base path, which is all the current deploy uses.
+    let paths: string[] = location.pathname.split('/').slice(1, 2);
     let basePath: string = (paths && paths[0]) || '';
     if (!basePath.endsWith('/'))
         basePath += '/';
     if (!basePath.startsWith('/'))
         basePath = '/' + basePath;
-    console.log('basePath', basePath);
     return basePath;
 }
 

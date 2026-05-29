@@ -51,3 +51,8 @@ import 'zone.js';  // Included with Angular CLI.
 /***************************************************************************************************
  * APPLICATION IMPORTS
  */
+
+// class-transformer's @Type/@Expose decorators need the reflect-metadata polyfill loaded before
+// any decorated class is instantiated. Import it here rather than relying on an incidental
+// per-file import (which is import-order / tree-shake fragile).
+import 'reflect-metadata';
