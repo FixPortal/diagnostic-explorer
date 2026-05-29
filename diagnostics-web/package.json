@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "build:prod": "NODE_ENV=production ng build --prod",
     "test": "jest --runInBand --coverage",
-    "test:mutation": "stryker run stryker.conf.json"
+    "test:mutation": "stryker run stryker.conf.json",
+    "lint": "eslint ."
   },
   "private": true,
   "dependencies": {
@@ -42,6 +43,8 @@
     "@types/lodash": "^4.14.178",
     "@types/node": "^12.20.37",
     "autoprefixer": "^10.2.5",
+    "eslint": "^10.4.0",
+    "eslint-plugin-sonarjs": "^4.0.3",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "jest-preset-angular": "^16.1.5",
@@ -49,6 +52,7 @@
     "postcss": "^8.2.15",
     "tailwindcss": "^3.0.2",
     "ts-node": "^10.9.2",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0"
   }
 }
