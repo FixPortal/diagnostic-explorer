@@ -99,7 +99,7 @@ public class DiagnosticHostingService
             RegistrationHandler[] handlers = Regex.Split(_options.Uri, @"\s|;|,")
                 .Select(hubUrl => hubUrl.Trim())
                 .Where(hubUrl => !string.IsNullOrWhiteSpace(hubUrl))
-                .Select(hubUrl => new RegistrationHandler(hubUrl, registration))
+                .Select(hubUrl => new RegistrationHandler(hubUrl, registration, _options.ApiKey))
                 .ToArray();
 
             foreach (RegistrationHandler handler in handlers)

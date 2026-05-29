@@ -4,7 +4,9 @@
 
 export const environment = {
     production: false,
-    apiRoot: "/web-hub"
+    apiRoot: "/web-hub",
+    // API key for the hub when the service is in ApiKey auth mode (H1). Empty == no key (default).
+    apiKey: ""
 };
 
 /*

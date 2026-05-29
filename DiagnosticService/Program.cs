@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using DiagnosticExplorer;
 using DiagnosticExplorer.Common;
 using Diagnostics.Service.Common.Hubs;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
 public static class Program
@@ -21,14 +22,22 @@ public static class Program
 
         var services = builder.Services;
 
-        services.AddCors(opt => {
-            opt.AddPolicy("CorsPolicy", builder => {
-                builder
-                    .AllowAnyOrigin()
-                    .AllowAnyHeader()
-                    .AllowAnyMethod();
-            });
-        });
+        // CORS services only; the policy is selected from configuration in the request pipeline
+        // below (H2). The old named "CorsPolicy" was dead config (never applied) and is removed.
+        services.AddCors();
+
+        // H1: API-key authentication is opt-in. In None mode (the default) no scheme is registered
+        // and the hubs stay open — today's behaviour; in ApiKey mode every hub connection must
+        // present a valid key. Read directly from configuration so registration is conditional.
+        AuthMode authMode = builder.Configuration.GetValue<AuthMode>(
+            $"{nameof(DiagServiceSettings)}:{nameof(DiagServiceSettings.Security)}:{nameof(SecuritySettings.AuthMode)}");
+
+        if (authMode != AuthMode.None)
+        {
+            services.AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
+            services.AddAuthorization();
+        }
         // Register the managers as hosted services so the host drives Start/StopAsync eagerly
         // and deterministically. They were AddSingleton-only and self-wired their lifecycle in
         // their constructors via ApplicationStarted.Register — which only fired if the singleton
@@ -69,10 +78,45 @@ public static class Program
             }));
 
         app.UseRouting();
-        app.UseCors(x => x.SetIsOriginAllowed(x => true).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+
+        // H2: a real allowlist when configured; otherwise keep the historical permissive policy but
+        // make the risk visible at startup (reflecting any origin with credentials is a CSRF/exfil
+        // surface — see the audit). Never AllowAnyOrigin()+AllowCredentials(), which is invalid.
+        string[] corsOrigins = settings.Security.AllowedCorsOrigins;
+        if (corsOrigins is { Length: > 0 })
+        {
+            app.UseCors(policy => policy
+                .WithOrigins(corsOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials());
+        }
+        else
+        {
+            app.Logger.LogWarning(
+                "DiagServiceSettings:Security:AllowedCorsOrigins is empty — CORS is reflecting ANY origin with credentials (H2). Configure an allowlist to lock this down.");
+            app.UseCors(policy => policy
+                .SetIsOriginAllowed(_ => true)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials());
+        }
+
+        // H1: only enforce when opted in; in None mode these are skipped so the hubs stay open.
+        if (authMode != AuthMode.None)
+        {
+            app.UseAuthentication();
+            app.UseAuthorization();
+        }
+
         app.UseEndpoints(endpoints => {
-            endpoints.MapHub<WebHub>("/web-hub");
-            endpoints.MapHub<DiagnosticHub>("/diagnostics");
+            var webHub = endpoints.MapHub<WebHub>("/web-hub");
+            var diagHub = endpoints.MapHub<DiagnosticHub>("/diagnostics");
+            if (authMode != AuthMode.None)
+            {
+                webHub.RequireAuthorization();
+                diagHub.RequireAuthorization();
+            }
         });
 
         if (!settings.UseSpaProxy && !Directory.Exists(spaPath))

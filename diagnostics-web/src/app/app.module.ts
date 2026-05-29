@@ -41,7 +41,7 @@ import {LevelNamePipe} from './pipes/level-name.pipe';
 import {AngularSplitModule} from 'angular-split';
 import {CollapsibleRegionComponent} from "./collapsible-region/collapsible-region.component";
 import {getBaseLocation} from "./util/util";
-import {BASE_API_URL} from "../injectionTokens";
+import {BASE_API_URL, BASE_API_KEY} from "../injectionTokens";
 import {environment} from "../environments/environment";
 
 @NgModule({ declarations: [
@@ -87,6 +87,7 @@ import {environment} from "../environments/environment";
         { provide: MAT_DATE_LOCALE, useValue: 'en-GB' },
         { provide: APP_BASE_HREF, useFactory: getBaseLocation },
         { provide: BASE_API_URL, useValue: environment.apiRoot },
+        { provide: BASE_API_KEY, useValue: environment.apiKey },
         DatePipe,
         provideHttpClient(withInterceptorsFromDi())
     ] })

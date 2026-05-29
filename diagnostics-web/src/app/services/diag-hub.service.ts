@@ -6,7 +6,7 @@ import {OperationResponse, SetPropertyRequest} from '../Model/SetPropertyRequest
 import {plainToInstance} from 'class-transformer';
 import {ExecOperationRequest} from '../Model/ExecOperationRequest';
 import {RetroQuery} from '../Model/RetroQuery';
-import {BASE_API_URL} from "../../injectionTokens";
+import {BASE_API_URL, BASE_API_KEY} from "../../injectionTokens";
 
 @Injectable({
     providedIn: 'root'
@@ -19,15 +19,18 @@ export class DiagHubService {
 
 
     constructor(
-        @Inject(BASE_API_URL) private baseUrl: string) {
+        @Inject(BASE_API_URL) private baseUrl: string,
+        @Inject(BASE_API_KEY) private apiKey: string) {
     }
 
     public async connect(): Promise<void> {
         while (!this.connection) {
             try {
 
+                // H1: send the API key via accessTokenFactory when configured (access_token query
+                // on the WS upgrade). Empty key (default) connects with no token, as before.
                 const connection = new signalR.HubConnectionBuilder()
-                    .withUrl(this.baseUrl)
+                    .withUrl(this.baseUrl, this.apiKey ? {accessTokenFactory: () => this.apiKey} : {})
                     .build();
 
                 connection.onreconnecting(err => console.log('Hub reconnecting', err))
