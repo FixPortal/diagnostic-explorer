@@ -61,6 +61,30 @@ public class TraceScopeTests
     }
 
     /// <summary>
+    /// Scopes nest correctly across await points within one logical async flow: the AsyncLocal
+    /// stack flows into the continuation, so Current tracks the active scope before and after each
+    /// await and disposing the inner scope restores the outer. This documents that the realistic
+    /// async usage is sound — the AsyncLocal "mutations don't flow back" limitation only affects
+    /// forked/parallel contexts, which is not how using-based trace scopes are used.
+    /// </summary>
+    [Fact]
+    public async Task NestedScopes_AcrossAwaits_TrackCurrentWithinOneAsyncFlow()
+    {
+        using var outer = new TraceScope(_ => { });
+        await Task.Yield();
+        TraceScope.Current.Should().BeSameAs(outer);
+
+        using (var inner = new TraceScope(_ => { }))
+        {
+            await Task.Yield();
+            TraceScope.Current.Should().BeSameAs(inner);
+        }
+
+        await Task.Yield();
+        TraceScope.Current.Should().BeSameAs(outer);
+    }
+
+    /// <summary>
     /// The root scope, on dispose, renders its name and every traced line and hands the text
     /// to its trace action — the actual diagnostic output a consumer sees. Asserts the BEGIN/END
     /// framing and that both traced messages appear.

@@ -169,9 +169,10 @@ describe('RealtimeModel', () => {
         });
 
         it('routes ShowDiagnosticsError to a snackbar', () => {
-            const {hub, snackBar} = makeModel();
+            const {model, hub, snackBar} = makeModel();
             const connection = makeConnection();
             hub.emitReady(connection);
+            model.activeProcess = proc('p-1', 'Active');
 
             connection.handlers['ShowDiagnosticsError']('p-1', 'boom');
 
@@ -193,6 +194,7 @@ describe('RealtimeModel', () => {
             const {model, hub} = makeModel();
             const connection = makeConnection();
             hub.emitReady(connection);
+            model.activeProcess = proc('p-1', 'Active');
 
             const response = new DiagnosticResponse();
             response.propertyBags = [
@@ -212,6 +214,7 @@ describe('RealtimeModel', () => {
             const {model, hub} = makeModel();
             const connection = makeConnection();
             hub.emitReady(connection);
+            model.activeProcess = proc('p-1', 'Active');
 
             const first = new DiagnosticResponse();
             first.propertyBags = [Object.assign(new PropertyBag(), {name: 'a', category: 'Alpha'})];
@@ -227,6 +230,21 @@ describe('RealtimeModel', () => {
             const updated = model.categories.find(c => c.name === 'Alpha')!;
             expect(updated).toBe(original);
             expect(updated.propData.map(p => p.name)).toEqual(['a2']);
+        });
+
+        it('ignores a ShowDiagnostics frame for a non-active process (id guard)', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('p-1', 'Active');
+
+            const response = new DiagnosticResponse();
+            response.propertyBags = [Object.assign(new PropertyBag(), {name: 'a', category: 'Alpha'})];
+
+            // A late frame for a different (previously-selected) process must not overwrite the view.
+            connection.handlers['ShowDiagnostics']('p-OTHER', response);
+
+            expect(model.categories).toEqual([]);
         });
     });
 
