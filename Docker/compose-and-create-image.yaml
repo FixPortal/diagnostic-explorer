@@ -6,7 +6,7 @@
 #
 # Environment variable overrides (set in your shell or a sibling .env file):
 #   MONGO_USERNAME           - mongo root user           (default: admin)
-#   MONGO_PASSWORD           - mongo root password       (default: password123)
+#   MONGO_PASSWORD           - mongo root password       (REQUIRED — no default)
 #   DIAGEXPLORER_HOST_PORT   - host-side port for 2803   (default: 2803)
 #                              Override (e.g. 2903) if another process on
 #                              the host is already bound to 2803 -- for
@@ -22,10 +22,12 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password123}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?MONGO_PASSWORD must be set}
       MONGO_INITDB_DATABASE: diagnostic_db
     ports:
-      - "27017:27017"
+      # Bound to loopback only: the app reaches Mongo over the internal diagnostic-network,
+      # so the host mapping is for local tooling, not for exposing the DB to the network.
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
@@ -50,7 +52,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:2803
-      - DiagServiceSettings__RetroConnection=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-password123}@mongodb:27017/diagnostic_db?authSource=admin
+      - DiagServiceSettings__RetroConnection=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:?MONGO_PASSWORD must be set}@mongodb:27017/diagnostic_db?authSource=admin
     depends_on:
       mongodb:
         condition: service_healthy

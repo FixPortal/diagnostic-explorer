@@ -29,15 +29,21 @@ public static class Program
                     .AllowAnyMethod();
             });
         });
-        services.AddSignalR();
-
+        // Register the managers as hosted services so the host drives Start/StopAsync eagerly
+        // and deterministically. They were AddSingleton-only and self-wired their lifecycle in
+        // their constructors via ApplicationStarted.Register — which only fired if the singleton
+        // happened to be constructed (lazily, on first hub injection) before ApplicationStarted,
+        // so retro logging / alert decay could silently never start. The AddHostedService factory
+        // resolves the same singleton the hubs inject.
         services.AddSingleton<RealtimeManager>();
+        services.AddHostedService(sp => sp.GetRequiredService<RealtimeManager>());
         services.AddSingleton<RetroManager>();
+        services.AddHostedService(sp => sp.GetRequiredService<RetroManager>());
         services.AddSignalR().AddHubOptions<DiagnosticHub>(options => {
-            options.MaximumReceiveMessageSize = int.MaxValue;
+            options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB — finite cap (was int.MaxValue, an unbounded-payload DoS)
             options.MaximumParallelInvocationsPerClient = 5;
         }).AddHubOptions<WebHub>(options => {
-            options.MaximumReceiveMessageSize = int.MaxValue;
+            options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB — finite cap (was int.MaxValue, an unbounded-payload DoS)
             options.MaximumParallelInvocationsPerClient = 5;
             options.EnableDetailedErrors = true;
         }).AddJsonProtocol(options => {

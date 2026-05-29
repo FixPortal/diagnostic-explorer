@@ -27,6 +27,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Timers;
 
 namespace DiagnosticExplorer
@@ -87,7 +88,9 @@ namespace DiagnosticExplorer
 				{
 					RateSampleEventArgs args = new RateSampleEventArgs(Rate, GetRates(_times.Length));
 					foreach (EventHandler<RateSampleEventArgs> handler in sampleCollectedHandler.GetInvocationList())
-						handler.BeginInvoke(this, args, null, null);
+						// Delegate.BeginInvoke throws PlatformNotSupportedException on .NET Core/5+.
+						// Task.Run gives the same fire-and-forget async dispatch portably.
+						Task.Run(() => handler(this, args));
 				}
 			}
 			catch (Exception ex)

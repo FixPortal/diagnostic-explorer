@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using DiagnosticExplorer.Util;
 
 namespace DiagnosticExplorer
@@ -14,9 +16,10 @@ namespace DiagnosticExplorer
 		private static readonly StringComparer _ignoreCase = StringComparer.CurrentCultureIgnoreCase;
 		private static List<RegisteredObject> RegisteredObjects { get; set; }
 
-		private static Dictionary<string, List<PropertyGetter>> _typeHash = new();
+		private static readonly ConcurrentDictionary<string, List<PropertyGetter>> _typeHash = new();
 
-		private static readonly Dictionary<Type, OperationSet> _operationLookup = new();
+		private static readonly ConcurrentDictionary<Type, OperationSet> _operationLookup = new();
+		private static int _operationSetId;
         public static bool Enabled { get; set; } = true;
 
 		static DiagnosticManager()
@@ -28,7 +31,8 @@ namespace DiagnosticExplorer
 		{
 			_operationLookup.Clear();
 			_typeHash.Clear();
-			RegisteredObjects.Clear();
+			lock (RegisteredObjects)
+				RegisteredObjects.Clear();
 		}
 
 		public static void Register(object o, string bagName, string bagCategory)
@@ -153,20 +157,20 @@ namespace DiagnosticExplorer
 
 			Type propType = sourceObject.GetType();
 
-            if (_operationLookup.TryGetValue(propType, out OperationSet existing))
-				return existing;
+			// ConcurrentDictionary makes the cache thread-safe; GetOrAdd replaces the
+			// previous broken double-checked locking over a plain Dictionary. The factory
+			// may run more than once under contention, but only one result is stored and
+			// CreateOperationSet is idempotent. Ids come from a monotonic counter so two
+			// distinct sets can never collide on Id.
+			return _operationLookup.GetOrAdd(propType, BuildOperationSet);
+		}
 
-			lock (_operationLookup)
-			{
-				if (!_operationLookup.ContainsKey(propType))
-				{
-					OperationSet operationSet = CreateOperationSet(propType);
-					_operationLookup[propType] = operationSet;
-					if (operationSet != null)
-						operationSet.Id = _operationLookup.Values.Count(x => x != null).ToString();
-				}
-				return _operationLookup[propType];
-			}
+		private static OperationSet BuildOperationSet(Type propType)
+		{
+			OperationSet operationSet = CreateOperationSet(propType);
+			if (operationSet != null)
+				operationSet.Id = Interlocked.Increment(ref _operationSetId).ToString();
+			return operationSet;
 		}
 
 		private static OperationSet CreateOperationSet(Type propType)
@@ -253,45 +257,49 @@ namespace DiagnosticExplorer
 				typeKey = "Static: " + type.AssemblyQualifiedName;
 			}
 
-			List<PropertyGetter> propertyList;
-			if (!_typeHash.TryGetValue(typeKey, out propertyList))
+			// ConcurrentDictionary.GetOrAdd makes the cache thread-safe (the build path runs
+			// on the thread pool via the hub adapter). The factory is idempotent; a redundant
+			// build under contention is harmless because only one list is stored.
+			Type resolvedType = type;
+			bool isStatic = obj is Type;
+			return _typeHash.GetOrAdd(typeKey, _ => BuildPropertyGetters(resolvedType, isStatic));
+		}
+
+		private static List<PropertyGetter> BuildPropertyGetters(Type type, bool isStatic)
+		{
+			List<PropertyGetter> propertyList = new();
+
+			IEnumerable<PropertyInfo> properties = isStatic ? GetStaticProperties(type) : GetInstanceProperties(type, null);
+			foreach (PropertyInfo info in properties)
 			{
-				propertyList = new List<PropertyGetter>();
+				Type underlying = GetUnderlyingType(info.PropertyType);
 
-				bool isStatic = obj is Type;
-				IEnumerable<PropertyInfo> properties = isStatic ? GetStaticProperties(type) : GetInstanceProperties(type, null);
-				foreach (PropertyInfo info in properties)
+				PropertyAttribute propAttr = GetAttribute<PropertyAttribute>(info);
+				CollectionPropertyAttribute colPropAttr = propAttr as CollectionPropertyAttribute;
+				ExtendedPropertyAttribute extPropAttr = propAttr as ExtendedPropertyAttribute;
+
+				if (colPropAttr != null)
 				{
-					Type underlying = GetUnderlyingType(info.PropertyType);
-
-					PropertyAttribute propAttr = GetAttribute<PropertyAttribute>(info);
-					CollectionPropertyAttribute colPropAttr = propAttr as CollectionPropertyAttribute;
-					ExtendedPropertyAttribute extPropAttr = propAttr as ExtendedPropertyAttribute;
-
-					if (colPropAttr != null)
-					{
-						propertyList.Add(new CollectionGetter(info, colPropAttr, isStatic));
-					}
-					else if (extPropAttr != null)
-					{
-						propertyList.Add(new ExtendedPropertyGetter(info, extPropAttr, isStatic));
-					}
-					else if (info.PropertyType == typeof (RateCounter))
-					{
-						RatePropertyAttribute rateAttr = propAttr as RatePropertyAttribute;
-						propertyList.Add(new RateGetter(info, rateAttr, isStatic));
-					}
-					else if (underlying == typeof (DateTime) || underlying == typeof(DateTimeOffset))
-					{
-						DatePropertyAttribute dateAttr = propAttr as DatePropertyAttribute;
-						propertyList.Add(new DateGetter(info, dateAttr, isStatic));
-					}
-					else
-					{
-						propertyList.Add(new PropertyGetter(info, isStatic));
-					}
+					propertyList.Add(new CollectionGetter(info, colPropAttr, isStatic));
 				}
-				_typeHash[typeKey] = propertyList;
+				else if (extPropAttr != null)
+				{
+					propertyList.Add(new ExtendedPropertyGetter(info, extPropAttr, isStatic));
+				}
+				else if (info.PropertyType == typeof (RateCounter))
+				{
+					RatePropertyAttribute rateAttr = propAttr as RatePropertyAttribute;
+					propertyList.Add(new RateGetter(info, rateAttr, isStatic));
+				}
+				else if (underlying == typeof (DateTime) || underlying == typeof(DateTimeOffset))
+				{
+					DatePropertyAttribute dateAttr = propAttr as DatePropertyAttribute;
+					propertyList.Add(new DateGetter(info, dateAttr, isStatic));
+				}
+				else
+				{
+					propertyList.Add(new PropertyGetter(info, isStatic));
+				}
 			}
 			return propertyList;
 		}

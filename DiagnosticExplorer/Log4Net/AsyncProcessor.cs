@@ -25,10 +25,10 @@ namespace DiagnosticExplorer.Log4Net
 			BufferSize = bufferSize;
 			_forwardLoggingEvent = forwardLoggingEvent;
 
-			if (Overflow == BufferOverflowMode.Block)
-				_loggingEvents = new BlockingCollection<LoggingEventContext>(BufferSize);
-			else
-				_loggingEvents = new BlockingCollection<LoggingEventContext>();
+			// Bounded in both modes: Block uses Add (back-pressure), Discard uses TryAdd
+			// (drop on full). Previously Discard used an UNBOUNDED collection with a racy
+			// Count pre-check, so the cap was advisory and the queue could grow without limit.
+			_loggingEvents = new BlockingCollection<LoggingEventContext>(BufferSize);
 
 			_loggingCancelationTokenSource = new CancellationTokenSource();
 			_loggingCancelationToken = _loggingCancelationTokenSource.Token;
@@ -119,19 +119,42 @@ namespace DiagnosticExplorer.Log4Net
 
 		public int QueueSize
 		{
-			get { return _loggingEvents.Count; }
+			// Snapshot the field: Dispose nulls _loggingEvents on another thread and this is
+			// exposed as a diagnostic property polled from the UI.
+			get
+			{
+				BlockingCollection<LoggingEventContext> queue = _loggingEvents;
+				return queue?.Count ?? 0;
+			}
 		}
 
 		public void Append(LoggingEvent loggingEvent)
 		{
-			if (!_shutDownRequested && loggingEvent != null)
-			{
-				bool discard = Overflow == BufferOverflowMode.Discard && _loggingEvents.Count > BufferSize;
-				if (discard)
-					throw new LogException($"Maximum BufferSize of {BufferSize} has been reached");
+			BlockingCollection<LoggingEventContext> queue = _loggingEvents;
+			if (_shutDownRequested || loggingEvent == null || queue == null)
+				return;
 
-				loggingEvent.Fix = Fix;
-				_loggingEvents.Add(new LoggingEventContext(loggingEvent), _loggingCancelationToken);
+			loggingEvent.Fix = Fix;
+			LoggingEventContext context = new LoggingEventContext(loggingEvent);
+
+			try
+			{
+				if (Overflow == BufferOverflowMode.Discard)
+					// Bounded buffer + TryAdd: drop silently when full instead of throwing a
+					// LogException back onto the caller's logging thread (which log4net would
+					// route to the ErrorHandler and could fault the appender).
+					queue.TryAdd(context);
+				else
+					// Block mode: Add blocks for back-pressure until space frees up.
+					queue.Add(context, _loggingCancelationToken);
+			}
+			catch (OperationCanceledException)
+			{
+				// Shutting down — drop.
+			}
+			catch (InvalidOperationException)
+			{
+				// Adding was completed concurrently (shutdown race) — drop.
 			}
 		}
 

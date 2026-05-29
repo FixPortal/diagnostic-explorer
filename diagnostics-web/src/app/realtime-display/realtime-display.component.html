@@ -25,9 +25,8 @@
           <mat-tab-group class="col-start-1 row-start-1 scope-tabs">
             <mat-tab label="Detail">
               <textarea class="bg-neutral-900 text-neutral-300 resize-none"
-                [contentEditable]="false"
-                textContent="{{model.selectedEvent?.displayText}}">
-              </textarea>
+                readonly
+                [value]="model.selectedEvent?.displayText ?? ''"></textarea>
             </mat-tab>
             <mat-tab label="Trace Scope">
               @if (model?.selectedEvent?.region) {

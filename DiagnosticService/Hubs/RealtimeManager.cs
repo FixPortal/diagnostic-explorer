@@ -43,11 +43,7 @@ public class RealtimeManager : IHostedService
     public ICollection<DiagnosticSubscription> Subscriptions => _subscriptions.Values;
 
 
-    public RealtimeManager(IHostApplicationLifetime lifetime)
-    {
-        lifetime.ApplicationStarted.Register(() => StartAsync(lifetime.ApplicationStopping));
-        lifetime.ApplicationStopping.Register(() => StopAsync(CancellationToken.None));
-    }
+    // Lifecycle is driven by the host (registered via AddHostedService); no ctor self-wiring.
 
     public Task StartAsync(CancellationToken cancel)
     {

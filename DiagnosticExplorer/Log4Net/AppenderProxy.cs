@@ -126,7 +126,13 @@ namespace DiagnosticExplorer.Log4Net
 				LastErrorMessage = result.Message;
 				Errors.Register(1);
 				if (_timeout > TimeSpan.Zero)
+				{
 					_errorTime = SystemDateTime.UtcNow();
+					// Engage the fail-timeout quarantine. Without this the IsInError guard
+					// above never trips, ShouldResetError never runs, and a dead appender is
+					// retried on every event ("READY" forever).
+					IsInError = true;
+				}
 			}
 
 			return result.Success;

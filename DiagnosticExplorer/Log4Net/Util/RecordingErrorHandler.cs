@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -11,18 +11,28 @@ namespace DiagnosticExplorer.Log4Net
 
 	public class MultiErrorHandler : IErrorHandler
 	{
-		private List<IErrorHandler> _handlers = new List<IErrorHandler>();
-	
+		// Copy-on-write: AddHandler runs at appender-configuration time, Error iterates at
+		// runtime on logging threads. A plain List mutated while iterated throws
+		// InvalidOperationException; swapping an immutable snapshot under a lock avoids it.
+		private volatile IErrorHandler[] _handlers;
+		private readonly object _sync = new object();
+
 		public MultiErrorHandler()
 		{
-			_handlers.Add(new OnlyOnceErrorHandler());
+			_handlers = new IErrorHandler[] { new OnlyOnceErrorHandler() };
 		}
 
 		public void AddHandler(IErrorHandler handler)
 		{
 			if (handler == null) throw new ArgumentNullException(nameof(handler));
 
-			_handlers.Add(handler);
+			lock (_sync)
+			{
+				IErrorHandler[] updated = new IErrorHandler[_handlers.Length + 1];
+				Array.Copy(_handlers, updated, _handlers.Length);
+				updated[_handlers.Length] = handler;
+				_handlers = updated;
+			}
 		}
 
 		public void Error(string message)
@@ -65,59 +75,64 @@ namespace DiagnosticExplorer.Log4Net
 	/// </summary>
 	public class AppenderProxyErrorHandler : IErrorHandler
 	{
-
-		public bool HasError { get; private set; }
-
-		public string Message { get; private set; }
-
-		private bool IsEnabled
+		// Per-thread error state. FireAppendAction enables on the appending thread, the wrapped
+		// appender raises Error synchronously on that same thread, then we read it back. Holding
+		// the enabled flag + captured error per-thread means concurrent appends through the same
+		// proxy (e.g. ForwardingAppender's Parallel.ForEach) can't stomp each other's tracking,
+		// and the previous Thread.CurrentThread == _enabledThread gate (which dropped any error
+		// raised on a different thread) is gone.
+		private sealed class ErrorState
 		{
-			get { return Thread.CurrentThread == _enabledThread; }
+			public bool Enabled;
+			public bool HasError;
+			public string Message;
 		}
 
-		private Thread _enabledThread;
+		private readonly ThreadLocal<ErrorState> _state = new ThreadLocal<ErrorState>(() => new ErrorState());
+
+		public bool HasError => _state.Value.HasError;
+
+		public string Message => _state.Value.Message;
 
 		public void EnableForCurrentThread()
 		{
-			_enabledThread = Thread.CurrentThread;
+			_state.Value.Enabled = true;
 		}
 
 		public void Disable()
 		{
-			_enabledThread = null;
+			_state.Value.Enabled = false;
 		}
 
 		public void Error(string message)
 		{
-			if (IsEnabled)
-			{
-				Message = message;
-				HasError = true;
-			}
+			Record(message, null);
 		}
 
 		public void Error(string message, Exception exception)
 		{
-			if (IsEnabled)
-			{
-				Message = exception?.Message ?? message;
-				HasError = true;
-			}
+			Record(message, exception);
 		}
 
 		public void Error(string message, Exception exception, ErrorCode errorCode)
 		{
-			if (IsEnabled)
-			{
-				Message = exception?.Message ?? message;
-				HasError = true;
-			}
+			Record(message, exception);
+		}
+
+		private void Record(string message, Exception exception)
+		{
+			ErrorState state = _state.Value;
+			if (!state.Enabled) return;
+
+			state.Message = exception?.Message ?? message;
+			state.HasError = true;
 		}
 
 		internal void ResetError()
 		{
-			HasError = false;
-			Message = null;
+			ErrorState state = _state.Value;
+			state.HasError = false;
+			state.Message = null;
 		}
 	}
 }

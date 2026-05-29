@@ -32,11 +32,14 @@ public class RetroManager : IHostedService
     public EventSink RetroEvents { get; } = EventSinkRepo.Default.GetSink("Retro Events", "Retro");
 
 
+    private readonly IHostApplicationLifetime _lifetime;
+
     public RetroManager(IHostApplicationLifetime lifetime, IOptions<DiagServiceSettings> config)
     {
         Options = config.Value;
-        lifetime.ApplicationStarted.Register(() => StartAsync(lifetime.ApplicationStopping));
-        lifetime.ApplicationStopping.Register(() => StopAsync(CancellationToken.None));
+        // Lifecycle is now driven by the host (registered via AddHostedService); no ctor
+        // self-wiring. _lifetime is kept so StartAsync can tie the drain loop to ApplicationStopping.
+        _lifetime = lifetime;
     }
 
   
@@ -66,7 +69,9 @@ public class RetroManager : IHostedService
 
         _logger = Options.CreateRetroLogger();
 
-        _loggingTask = Task.Run(() => RunLoop(cancel));
+        // Tie the drain loop to ApplicationStopping (not the host's start-abort token) so it
+        // keeps running for the app's lifetime and cancels cleanly on shutdown.
+        _loggingTask = Task.Run(() => RunLoop(_lifetime.ApplicationStopping));
         return Task.CompletedTask;
     }
 
