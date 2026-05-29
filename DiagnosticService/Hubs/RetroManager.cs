@@ -50,9 +50,11 @@ public class RetroManager : IHostedService
 
         _writeQueueSize = 0;
 
-        _writeChannel = Channel.CreateBounded<IList<DiagnosticMsg>>(new BoundedChannelOptions(1_000_000)
+        // 10k batches is a real backlog cap (1_000_000 batches x up-to-50 msgs was effectively
+        // unbounded, so DropWrite never engaged and memory was uncapped during a logger outage).
+        _writeChannel = Channel.CreateBounded<IList<DiagnosticMsg>>(new BoundedChannelOptions(10_000)
         {
-            SingleReader = true, 
+            SingleReader = true,
             FullMode = BoundedChannelFullMode.DropWrite,
         });
 

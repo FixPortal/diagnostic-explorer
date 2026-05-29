@@ -34,7 +34,7 @@ export class SetPropertyDialogComponent implements OnInit {
     }
 
     handleKeyUp(evt: KeyboardEvent) {
-        console.log(evt.key);
+        // (removed console.log(evt.key) — it logged every keystroke of the value being set on a live process)
         if (evt.key === 'Enter')
             this.onOkClick();
 

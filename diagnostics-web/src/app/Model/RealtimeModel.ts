@@ -326,9 +326,11 @@ export class RealtimeModel {
         if (this.activeProcess?.id !== id) return;
 
         evts.forEach(evt => this.setEventLevel(evt));
-        evts.reverse();
+        // Copy before reversing: evts is the array delivered by the SignalR handler; reversing it
+        // in place mutates a caller-owned array.
+        const ordered = [...evts].reverse();
 
-        var grouped = _.groupBy<SystemEvent>(evts, evt => evt.sinkCategory);
+        var grouped = _.groupBy<SystemEvent>(ordered, evt => evt.sinkCategory);
         for (const cat in grouped)
             this.getCat(cat).addEvents(grouped[cat]);
     }

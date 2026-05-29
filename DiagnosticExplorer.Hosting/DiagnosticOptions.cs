@@ -2,7 +2,7 @@
 
 public class DiagnosticOptions
 {
-    public static string DiagnosticExplorer = "DiagnosticExplorer";
+    public const string DiagnosticExplorer = "DiagnosticExplorer";
 
     public DiagnosticOptions()
     {
