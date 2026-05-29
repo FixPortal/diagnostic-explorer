@@ -208,7 +208,12 @@ public class TraceScope : IDisposable
         if (item.TraceScope.SuppressDetailThreshold == null) return true;
 
         TimeSpan thresh = item.TraceScope.SuppressDetailThreshold.Value;
-        TimeSpan duration = item.TraceScope._disposed.Value - item.TraceScope._created;
+        // Snapshot _disposed once: when a still-running child is rendered (the auto-trace timer
+        // fires while the child is open), _disposed is null. Reading .Value threw a NullReference
+        // that TraceMessage swallowed, so auto-trace silently produced no output. Fall back to
+        // elapsed-so-far for an in-progress child.
+        DateTime? disposed = item.TraceScope._disposed;
+        TimeSpan duration = (disposed ?? DateTime.UtcNow) - item.TraceScope._created;
         return duration >= thresh;
     }
 

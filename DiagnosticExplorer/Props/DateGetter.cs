@@ -52,10 +52,28 @@ namespace DiagnosticExplorer
                 base.GetProperties(obj, bag, catPrepend);
             }
 
-            var value = GetFunc(obj);
-            DateTime? dateVal = value is DateTimeOffset off ? off.LocalDateTime : (DateTime?) value;
-            if (dateVal != null && dateVal.Value.Kind == DateTimeKind.Utc)
-                dateVal = dateVal.Value.ToLocalTime();
+            if (!_exposeElapsed && !_exposeTimeUntil)
+                return;
+
+            DateTime? dateVal;
+            try
+            {
+                var value = GetFunc(obj);
+                dateVal = value is DateTimeOffset off ? off.LocalDateTime : (DateTime?) value;
+                if (dateVal != null && dateVal.Value.Kind == DateTimeKind.Utc)
+                    dateVal = dateVal.Value.ToLocalTime();
+            }
+            catch (Exception ex)
+            {
+                // A throwing date property must degrade to an error string rather than abort the
+                // whole diagnostic walk; this raw getter call bypassed the guarded GetValue path.
+                string error = $"<{ex.Message}>";
+                if (_exposeElapsed)
+                    bag.AddProperty(new Property("Time since " + Name, error), PrependToCategory(catPrepend));
+                if (_exposeTimeUntil)
+                    bag.AddProperty(new Property("Time until " + Name, error), PrependToCategory(catPrepend));
+                return;
+            }
 
             if (_exposeElapsed)
             {

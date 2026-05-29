@@ -183,9 +183,12 @@ namespace DiagnosticExplorer
 
 		protected string FormatEnumerable(IEnumerable col, string separator, int maxItems)
 		{
-			IEnumerable<object> asObject = col.Cast<object>();
-			int count = asObject.Count();
-			if (count == 0) 
+			// Materialize once. This was Count() followed by Take() over a possibly-lazy sequence,
+			// enumerating the source twice — and for the concatenate path (col is a Select over the
+			// user's value selector) re-invoking that selector on every pass.
+			List<object> asObject = col.Cast<object>().ToList();
+			int count = asObject.Count;
+			if (count == 0)
 				return "0 items";
 	
 			List<string> values = new List<string>();

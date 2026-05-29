@@ -151,4 +151,24 @@ public class TraceScopeTests
         captured.Should().Contain("BEGIN/END* Child");
         captured.Should().NotContain("hidden detail");
     }
+
+    /// <summary>
+    /// Rendering a still-running child under SuppressDetailThreshold must not throw. The auto-trace
+    /// timer renders the tree while a child is still open (its _disposed is null); FullTraceRequired
+    /// read that null _disposed.Value and threw, which TraceMessage swallowed, so the auto-trace
+    /// feature silently produced nothing. Reproduced deterministically here by rendering the root via
+    /// ToString() with the child still open. (M29)
+    /// </summary>
+    [Fact]
+    public void RenderingAnOpenChildUnderSuppressThreshold_DoesNotThrow()
+    {
+        using var root = new TraceScope("Root", _ => { });
+        using var child = new TraceScope("Child", (Action<string>?)null) { SuppressDetailThreshold = TimeSpan.FromMinutes(10) };
+
+        // child is intentionally NOT disposed — this is the auto-trace render state.
+        Action render = () => root.ToString();
+
+        render.Should().NotThrow();
+        root.ToString().Should().Contain("BEGIN Root");
+    }
 }

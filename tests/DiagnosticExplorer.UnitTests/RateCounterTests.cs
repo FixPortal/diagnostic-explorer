@@ -1,3 +1,4 @@
+using System;
 using AwesomeAssertions;
 using DiagnosticExplorer;
 using Xunit;
@@ -55,5 +56,38 @@ public class RateCounterTests
         var rates = RateCounter.GetRates(3, 7, values);
 
         rates.Should().Equal(20, 10, 50);
+    }
+
+    /// <summary>
+    /// When both the requested seconds and the wrapped index exceed the buffer length, the result
+    /// is clamped to the buffer length — without this clamp GetRates would walk back past the ring
+    /// size and re-report the same slots as if they were distinct samples, fabricating history. (M21)
+    /// </summary>
+    [Fact]
+    public void GetRates_WhenSecondsAndIndexExceedBufferLength_ClampsToBufferLength()
+    {
+        var values = new[] { 10, 20, 30, 40, 50 }; // length 5
+
+        // seconds 8 and currentIndex 9 both exceed the 5-slot buffer; clamp to 5.
+        var rates = RateCounter.GetRates(8, 9, values);
+
+        // newest-first from index 9: slots 8%5=3, 7%5=2, 6%5=1, 5%5=0, 4%5=4.
+        rates.Should().Equal(40, 30, 20, 10, 50);
+    }
+
+    /// <summary>
+    /// The ctor requires a positive averaging window. Zero would give zero-length buffers (a
+    /// swallowed DivideByZeroException on the timer thread, so the counter silently never advances)
+    /// and a negative value an OverflowException at allocation, so both fail fast instead. (M20)
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Ctor_WithNonPositiveSecondsAverage_Throws(int secondsAverage)
+    {
+        var act = () => new RateCounter(secondsAverage);
+
+        act.Should().Throw<ArgumentOutOfRangeException>()
+            .WithParameterName("secondsAverage");
     }
 }
