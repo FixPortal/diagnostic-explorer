@@ -97,4 +97,23 @@ public class EventSinkTests
 
         repo.GetEvents().Select(e => e.Message).Should().BeEquivalentTo(new[] { "one", "two" });
     }
+
+    /// <summary>
+    /// Clear() resets the sink set, so the aggregated backlog is empty afterwards and a sink
+    /// requested again is a fresh instance. (M34 — Clear now also takes the stream lock so it
+    /// can't race the CreateSinkStream/GetEvents snapshots; that's a concurrency property not
+    /// asserted here, but this pins the observable reset semantics.)
+    /// </summary>
+    [Fact]
+    public void Clear_EmptiesTheBacklogAndResetsSinks()
+    {
+        var repo = new EventSinkRepo();
+        var original = repo.GetSink("svc", "cat");
+        original.Info("one");
+
+        repo.Clear();
+
+        repo.GetEvents().Should().BeEmpty();
+        repo.GetSink("svc", "cat").Should().NotBeSameAs(original);
+    }
 }

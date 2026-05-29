@@ -92,6 +92,18 @@ public class EventSinkRepo
 
     public void Clear()
     {
-        _sinks.Clear();
+        // Take the write lock so the clear is coherent with the _sinks.Values snapshots in
+        // CreateSinkStream/GetEvents (which run under this lock) rather than racing them mid-
+        // enumeration. Active _sinkStreams are intentionally left running — they belong to live
+        // subscriptions; this only resets the sink set. (M34)
+        _eventStreamLock.EnterWriteLock();
+        try
+        {
+            _sinks.Clear();
+        }
+        finally
+        {
+            _eventStreamLock.ExitWriteLock();
+        }
     }
 }

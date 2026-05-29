@@ -435,8 +435,17 @@ namespace WidgetSample
         {
             try
             {
+                if (items.Count == 0)
+                    return;
+
                 int index = _rand.Next(0, items.Count);
+                T item = items[index];
                 items.RemoveAt(index);
+
+                // Dispose the removed item so it unregisters from diagnostics (Widget.Dispose calls
+                // DiagnosticManager.Unregister). Without this a removed widget stays registered and
+                // visible in the diagnostics view, mis-teaching the registration/disposal contract. (M50)
+                (item as IDisposable)?.Dispose();
             }
             catch (Exception ex)
             {

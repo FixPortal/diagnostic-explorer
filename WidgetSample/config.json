@@ -1,6 +1,5 @@
 {
   "Diagnostics": {
     "Url": "http://localhost:2803/diagnostics"
-    //"Url": "http://diagnostics:2803/diagnostics, http://drdiagnostics:2803/diagnostics"
-  }  
+  }
 }
