@@ -201,8 +201,6 @@ export class RetroModel {
 
             // if (this.percentComplete === 100)
             //   this.onSearchComplete(false, false);
-
-            console.log(`appendResponse search: ${searchResult.searchId}, records: ${searchResult.results.length} ${searchResult.info}`);
         } catch (err) {
             console.log(err);
         }

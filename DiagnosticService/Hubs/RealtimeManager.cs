@@ -21,7 +21,7 @@ namespace Diagnostics.Service.Common.Hubs;
 public class RealtimeManager : IHostedService
 {
     private static readonly StringComparer _ic = StringComparer.InvariantCultureIgnoreCase;
-    private readonly ReaderWriterLockSlim _configLockObj = new(LockRecursionPolicy.SupportsRecursion);
+    private readonly object _configLockObj = new();
     private readonly ILog _log = LogManager.GetLogger(typeof(RealtimeManager));
     private readonly ConcurrentDictionary<string, DiagProcess> _processes = new();
     private readonly ConcurrentDictionary<string, WebClientHandler> _webClients = new();
@@ -29,8 +29,13 @@ public class RealtimeManager : IHostedService
 
 
     private readonly ConcurrentDictionary<DiagProcess, DiagnosticSubscription> _subscriptions = new();
-    public Subject<DiagProcess> ProcessChanged { get; } = new();
-    public Subject<DiagProcess> ProcessRemoved { get; } = new();
+
+    // Synchronized: OnNext is raised from the alert-decay timer thread (ProcessesAlertLevels),
+    // from hub-call threads (RegisterAlertLevel), and from inside the config write lock
+    // (Register/Deregister/RemoveProcess/TidyProcesses). Subject<T>.OnNext is not safe for
+    // concurrent callers, so wrap it in Subject.Synchronize to serialize notifications.
+    public ISubject<DiagProcess> ProcessChanged { get; } = Subject.Synchronize(new Subject<DiagProcess>());
+    public ISubject<DiagProcess> ProcessRemoved { get; } = Subject.Synchronize(new Subject<DiagProcess>());
     private IDisposable? _alertLevelSubscription;
 
     private static readonly TimeSpan _alertDuration = TimeSpan.FromSeconds(2);
@@ -145,15 +150,17 @@ public class RealtimeManager : IHostedService
 
     private void EnterConfigLock()
     {
-        // 10s fail-fast (was 1000s ≈ 16.7 min — under contention/deadlock that parked hub
-        // thread-pool threads long enough to starve the service). Config mutations acquire in ms.
-        if (!_configLockObj.TryEnterWriteLock(TimeSpan.FromSeconds(10)))
+        // Plain Monitor with a 10s fail-fast. The former ReaderWriterLockSlim only ever took the
+        // write lock — it never read-locked — so it bought nothing over mutual exclusion, yet (being
+        // IDisposable) was never disposed. Monitor is recursive on the owning thread, matching the
+        // old SupportsRecursion policy. (10s, was 1000s ≈ 16.7 min — see M2.)
+        if (!Monitor.TryEnter(_configLockObj, TimeSpan.FromSeconds(10)))
             throw new ApplicationException("Failed to obtain config write lock");
     }
 
     private void ExitConfigLock()
     {
-        _configLockObj.ExitWriteLock();
+        Monitor.Exit(_configLockObj);
     }
 
     public void RemoveProcess(string id)

@@ -35,19 +35,18 @@ public class DiagnosticHub : Hub<IDiagnosticHubClient>, IDiagnosticHubServer
         return base.OnDisconnectedAsync(ex);
     }
 
-    public async Task<RpcResult<RegistrationResponse>> Register(Registration registration)
+    // Not async: the body is synchronous (CS1998). SignalR awaits the returned Task either way.
+    public Task<RpcResult<RegistrationResponse>> Register(Registration registration)
     {
         RegistrationResponse response = new(TimeSpan.FromSeconds(20));
         try
         {
             _rtManager.Register(registration, Context.ConnectionId);
-            return RpcResult<RegistrationResponse>.Success(response);
-
-            // return Clients.Caller.RegisterReturn(RpcResult.Success(requestId), response);
+            return Task.FromResult(RpcResult<RegistrationResponse>.Success(response));
         }
         catch (Exception ex)
         {
-            return RpcResult<RegistrationResponse>.Fail(requestId: null, ex.Message, ex.ToString());
+            return Task.FromResult(RpcResult<RegistrationResponse>.Fail(requestId: null, ex.Message, ex.ToString()));
         }
     }
 
@@ -64,24 +63,25 @@ public class DiagnosticHub : Hub<IDiagnosticHubClient>, IDiagnosticHubServer
         }
     }
 
-    public async Task<RpcResult> LogEvents(byte[] eventData)
+    // Not async: the body is synchronous (CS1998). SignalR awaits the returned Task either way.
+    public Task<RpcResult> LogEvents(byte[] eventData)
     {
         try
         {
             DiagnosticMsg[]? messages = ProtobufUtil.Decompress<DiagnosticMsg[]>(eventData);
             if (messages?.Any() == true)
             {
-                 _rtManager.RegisterAlertLevel(Context.ConnectionId, messages);
+                _rtManager.RegisterAlertLevel(Context.ConnectionId, messages);
 
                 _retroManager.LogEvents(messages);
             }
 
-            return RpcResult.Success();
+            return Task.FromResult(RpcResult.Success());
         }
         catch (Exception ex)
         {
             _log.Error(ex);
-            return RpcResult.Fail(requestId: null, ex);
+            return Task.FromResult(RpcResult.Fail(requestId: null, ex));
         }
     }
 

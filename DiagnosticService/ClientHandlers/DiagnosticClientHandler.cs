@@ -38,14 +38,17 @@ public class DiagnosticClientHandler : HubProxyBase, IDiagnosticClient
         return ProtobufUtil.Decompress<DiagnosticResponse>(data);
     }
 
+    // Pass the caller's ConnectionAborted token (not CancellationToken.None): if the client
+    // disconnects mid-request, the pending TaskCompletionSource in the shared response bucket is
+    // released immediately rather than lingering until the round-trip timeout elapses.
     public Task<OperationResponse> SetProperty(string path, string value)
     {
-        return SendRequest<OperationResponse>(CancellationToken.None, requestId => _client.SetProperty(requestId, path, value));
+        return SendRequest<OperationResponse>(_callerContext.ConnectionAborted, requestId => _client.SetProperty(requestId, path, value));
     }
 
     public Task<OperationResponse> ExecuteOperation(string path, string operation, string[] arguments)
     {
-        return SendRequest<OperationResponse>(CancellationToken.None, requestId => _client.ExecuteOperation(requestId, path, operation, arguments));
+        return SendRequest<OperationResponse>(_callerContext.ConnectionAborted, requestId => _client.ExecuteOperation(requestId, path, operation, arguments));
     }
 
     public async Task SubscribeEvents()

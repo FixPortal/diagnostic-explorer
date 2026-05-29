@@ -34,9 +34,22 @@ sealed public class EventSinkStream : IDisposable
     private void WriteEvents(IList<SystemEvent> evts)
     {
         if (evts.Count <= bufferSize)
+        {
             EventChannel?.Writer.TryWrite(evts);
-        else
-            evts.ToObservable().Buffer(bufferSize).ForEachAsync(chunk => EventChannel?.Writer.TryWrite(chunk));
+            return;
+        }
+
+        // Split into bufferSize-sized chunks synchronously. The previous
+        // evts.ToObservable().Buffer(bufferSize).ForEachAsync(...) returned a Task that was never
+        // awaited or observed (fire-and-forget) — any fault was swallowed and completion ordering
+        // was undefined. A plain loop has the same chunking effect with none of that.
+        for (int i = 0; i < evts.Count; i += bufferSize)
+        {
+            var chunk = new List<SystemEvent>(Math.Min(bufferSize, evts.Count - i));
+            for (int j = i; j < evts.Count && j < i + bufferSize; j++)
+                chunk.Add(evts[j]);
+            EventChannel?.Writer.TryWrite(chunk);
+        }
     }
 
     public SystemEvent[] InitialEvents { get; }

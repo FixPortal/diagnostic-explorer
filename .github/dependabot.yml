@@ -1,0 +1,57 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      microsoft-extensions:
+        patterns: ["Microsoft.Extensions.*"]
+      aspnetcore:
+        patterns: ["Microsoft.AspNetCore.*"]
+      xunit:
+        patterns: ["xunit", "xunit.*", "xunit.v3", "xunit.v3.*"]
+      testing:
+        patterns: ["NSubstitute", "NSubstitute.*", "AwesomeAssertions", "AwesomeAssertions.*", "Microsoft.NET.Test.Sdk", "coverlet.*"]
+      serilog:
+        patterns: ["Serilog", "Serilog.*"]
+      azure-sdk:
+        patterns: ["Azure.*", "Microsoft.Azure.*"]
+
+  - package-ecosystem: npm
+    directory: /diagnostics-web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]

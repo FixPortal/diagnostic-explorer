@@ -6,7 +6,11 @@ namespace Diagnostics.Service.Common.Hubs;
 
 public class HubProxyBase
 {
-    private TimeSpan _timeout = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// How long <see cref="SendRequest{T}"/> waits for the round-trip RPC reply before timing out.
+    /// Settable by subclasses so a deployment can override the default rather than a hard-coded const.
+    /// </summary>
+    protected TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
     public HubProxyBase() : this(new AsyncResultBucket())
     {
@@ -28,7 +32,7 @@ public class HubProxyBase
     protected async Task<T> SendRequest<T>(CancellationToken cancel, Func<string, Task> send)
     {
         string requestId = Guid.NewGuid().ToString("N");
-        Task<T> task = Responses.GetResult<T>(requestId, _timeout, cancel);
+        Task<T> task = Responses.GetResult<T>(requestId, Timeout, cancel);
         await send(requestId);
         // return await (not await + .Result): surfaces the original exception rather than an
         // AggregateException, and avoids the sync-over-async .Result footgun.
