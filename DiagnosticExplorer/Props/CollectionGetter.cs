@@ -86,15 +86,20 @@ namespace DiagnosticExplorer
 		{
 			try
 			{
-				IEnumerable col = GetFunc(obj) as IEnumerable;
+				IEnumerable rawCol = GetFunc(obj) as IEnumerable;
 
-				if (col == null)
+				if (rawCol == null)
 				{
 					bag.AddProperty(new Property(Name, null), PrependToCategory(catPrepend));
 					return;
 				}
 
-				int count = col.Cast<object>().Count();
+				// Materialize once: the count below and each mode branch would otherwise each
+				// re-enumerate the source (concatenate mode up to three passes via FormatEnumerable),
+				// re-running stateful/expensive/single-pass sequences and doubling side effects.
+				List<object> col = rawCol.Cast<object>().ToList();
+
+				int count = col.Count;
 
 				if (count == 0)
 				{

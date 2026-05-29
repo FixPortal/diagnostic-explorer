@@ -22,6 +22,7 @@
 
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -45,7 +46,22 @@ namespace DiagnosticExplorer
 
 		public override void GetProperties(object obj, PropertyBag bag, string catPrepend)
 		{
-			RateCounter rateCounter = (RateCounter)GetFunc(obj);
+			RateCounter rateCounter;
+			try
+			{
+				rateCounter = (RateCounter)GetFunc(obj);
+			}
+			catch (Exception ex)
+			{
+				// A throwing rate property must degrade to an error string (like the guarded
+				// PropertyGetter.GetValue path) rather than abort the whole diagnostic walk.
+				string error = $"<{ex.Message}>";
+				if (_exposeRate)
+					bag.AddProperty(new Property(Name + "/sec", error, Description) { SourceProperty = PropInfo }, PrependToCategory(catPrepend));
+				if (_exposeTotal)
+					bag.AddProperty(new Property("Total " + Name, error) { SourceProperty = PropInfo }, PrependToCategory(catPrepend));
+				return;
+			}
 
 			if (_exposeRate)
 			{

@@ -51,6 +51,13 @@ namespace DiagnosticExplorer
 
 		public RateCounter(int secondsAverage)
 		{
+			// Must be > 0: zero gives zero-length buffers, so `_index % _counts.Length` throws
+			// DivideByZeroException inside Run's swallowed try/catch and the counter silently never
+			// advances; negative throws OverflowException at the array allocation below.
+			if (secondsAverage <= 0)
+				throw new ArgumentOutOfRangeException(nameof(secondsAverage), secondsAverage,
+					"secondsAverage must be greater than zero.");
+
 			_counts = new int[secondsAverage];
 			_times = new TimeSpan[secondsAverage];
 
@@ -105,17 +112,21 @@ namespace DiagnosticExplorer
 			TimeSpan totalTime = _times.Aggregate((t1, t2) => t1 + t2);
 
 			if (totalTime == TimeSpan.Zero)
-				Rate = 0;
+				_rate = 0;
 			else
-				Rate = r / totalTime.TotalSeconds;
+				_rate = r / totalTime.TotalSeconds;
 		}
 
 		public void Register(int count)
 		{
+			// Ignore non-positive counts: a negative would corrupt the bucket (and diverge from
+			// Total, which only ever counted count > 0), producing negative rates. Zero is a no-op.
+			if (count <= 0)
+				return;
+
 			lock (_counts)
 			{
-				if (count > 0)
-					Total += (ulong) count;
+				_total += (ulong) count;
 				_counts[_index % _counts.Length] += count;
 			}
 		}
@@ -135,7 +146,11 @@ namespace DiagnosticExplorer
 
 		public static int[] GetRates(int seconds, int currentIndex, int[] values)
 		{
-			seconds = Math.Min(seconds, currentIndex);
+			// Clamp to the samples actually recorded (currentIndex) AND to the ring-buffer capacity
+			// (values.Length). Without the capacity clamp, once the index wraps we would walk back
+			// past the buffer size and re-read ring slots as if they were distinct samples,
+			// fabricating history the buffer never held.
+			seconds = Math.Min(seconds, Math.Min(currentIndex, values.Length));
 			int[] results = new int[seconds];
 			
 			for (int i = 0; i < results.Length; i++)
@@ -144,9 +159,14 @@ namespace DiagnosticExplorer
 			return results;
 		}
 
-		public double Rate { get; private set; }
+		private double _rate;
+		private ulong _total;
 
-		public ulong Total { get; private set; }
+		// Read under the same lock the writers (CalcRate/Register) hold: Rate (double) and Total
+		// (ulong) are 64-bit, so an unlocked read can tear on a 32-bit host.
+		public double Rate { get { lock (_counts) return _rate; } }
+
+		public ulong Total { get { lock (_counts) return _total; } }
 
 		private static void Run(object state, ElapsedEventArgs e)
 		{
