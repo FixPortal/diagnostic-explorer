@@ -174,7 +174,7 @@ namespace DiagnosticExplorer.Log4Net
 		{
 			try
 			{
-				SmtpClient smtpClient = new SmtpClient();
+				using SmtpClient smtpClient = new SmtpClient();
 				if (!string.IsNullOrEmpty(SmtpHost) && !string.Equals(SmtpHost, SmtpAppender.DefaultHostName, StringComparison.CurrentCultureIgnoreCase))
 					smtpClient.Host = SmtpHost;
 

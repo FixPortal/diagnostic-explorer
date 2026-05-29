@@ -44,16 +44,26 @@ export class ExecOperationsModel {
     }
 
     async execute(): Promise<void> {
+        // Guard the non-null derefs: clicking Execute before selecting an operation (or with no
+        // active process) previously threw a TypeError that was caught below and shown as the
+        // operation "result", hiding the real cause. The button is also disabled in this state.
+        const process = this.realtimeModel.activeProcess;
+        const operation = this.activeOperation;
+        if (!process || !operation) {
+            this.results = 'Select a process and an operation before executing.';
+            return;
+        }
+
         try {
             this.executing = true;
             this.results = '';
             this.executeDate = null;
 
             const request = new ExecOperationRequest();
-            request.id = this.realtimeModel.activeProcess!.id;
+            request.id = process.id;
             request.path = this.subCat.cat.name + '|' + this.subCat.name;
-            request.operation = this.activeOperation!.signature;
-            request.arguments = this.activeOperation!.parameters.map(p => p.value);
+            request.operation = operation.signature;
+            request.arguments = operation.parameters.map(p => p.value);
 
             const result: OperationResponse = await this.realtimeModel.hubService.executeOperation(request);
 

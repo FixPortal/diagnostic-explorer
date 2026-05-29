@@ -49,6 +49,13 @@ public class AsyncResultBucket
             else
                 completionSource.SetException(new AsyncCallException(result.Message, result.Detail));
         }
+        else
+        {
+            // No waiter for this request id — the caller already timed out/cancelled, or this is a
+            // duplicate reply. Previously dropped silently; log it so post-timeout late replies are
+            // diagnosable rather than invisible.
+            Debug.WriteLine($"AsyncResultBucket: no pending request for {result.RequestId}; result discarded");
+        }
     }
 
     public async Task<T> GetResult<T>(string requestId, TimeSpan timeout, CancellationToken cancel)
@@ -61,7 +68,9 @@ public class AsyncResultBucket
             Task awaitResult = await Task.WhenAny(Task.Delay(timeout, cancel), completionSource.Task);
 
             if (awaitResult == completionSource.Task)
-                return (T) completionSource.Task.Result;
+                // await (not .Result): a faulted task surfaces the original AsyncCallException
+                // with its message/detail, instead of an AggregateException wrapping it.
+                return (T) await completionSource.Task;
 
             throw new TimeoutException($"{requestId} GetResult Timed out waiting");
         }

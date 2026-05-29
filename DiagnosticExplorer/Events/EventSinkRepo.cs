@@ -12,13 +12,15 @@ public class EventSinkRepo
 
     private readonly List<EventSinkStream> _sinkStreams = new();
     private readonly ReaderWriterLockSlim _eventStreamLock = new(LockRecursionPolicy.NoRecursion);
-    private readonly ConcurrentDictionary<string, EventSink> _sinks = new();
+    // Keyed by the (name, category) tuple, not a "{name}.{category}" string: the latter collided
+    // distinct sinks, e.g. ("a.b","c") and ("a","b.c") both mapped to "a.b.c".
+    private readonly ConcurrentDictionary<(string Name, string Category), EventSink> _sinks = new();
 
     public static EventSinkRepo Default { get; }= new();
 
     public EventSink GetSink(string name, string category)
     {
-        return _sinks.GetOrAdd($"{name}.{category}", key => new EventSink(this, name, category));
+        return _sinks.GetOrAdd((name, category), key => new EventSink(this, key.Name, key.Category));
     }
 
     public void LogEvent(SystemEvent evt)

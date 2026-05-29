@@ -42,7 +42,7 @@
       </fieldset>
 
       <div class="col-span-2 place-self-end ">
-        <button mat-raised-button type="flat" [disabled]="model.executing"
+        <button mat-raised-button type="flat" [disabled]="model.executing || !model.activeOperation"
           (click)="model.execute()">{{ model.executing ? 'Executing' : 'Execute' }}
         </button>
       </div>

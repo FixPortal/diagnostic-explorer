@@ -105,15 +105,15 @@ public class DiagnosticHub : Hub<IDiagnosticHubClient>, IDiagnosticHubServer
 
     public Task SetEvents(SystemEvent[] events)
     {
-        var client = _rtManager.GetClientHandler(Context.ConnectionId);
-        client.SetEvents(events);
+        // GetClientHandler returns null on a disconnect/registration race; guard like the other
+        // hub methods rather than NRE-ing inside the invocation.
+        _rtManager.GetClientHandler(Context.ConnectionId)?.SetEvents(events);
         return Task.CompletedTask;
     }
 
     public Task StreamEvents(SystemEvent[] evts)
     {
-        var client = _rtManager.GetClientHandler(Context.ConnectionId);
-        client.StreamEvents(evts);
+        _rtManager.GetClientHandler(Context.ConnectionId)?.StreamEvents(evts);
         return Task.CompletedTask;
     }
 }

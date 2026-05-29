@@ -38,7 +38,6 @@ export class FilterCriteria {
     }
 
     filter(evt: IFilterableEvent): boolean {
-        console.log('filterFunc', this._filterFunc);
         return this._filterFunc(evt);
     }
 
