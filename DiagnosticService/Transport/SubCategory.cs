@@ -11,12 +11,9 @@ public class SubCategory
 
     public SubCategory(PropertyBag subcategory)
     {
-        SubCategory subCategoryModel = new()
-        {
-            Name = subcategory.Name,
-            Path = (subcategory.Category + '|' + subcategory.Name),
-        };
-        subCategoryModel.PropertyGroups = PropertyGroup.Map(subCategoryModel.Path, subcategory.Categories).ToArray();
+        Name = subcategory.Name;
+        Path = subcategory.Category + '|' + subcategory.Name;
+        PropertyGroups = PropertyGroup.Map(Path, subcategory.Categories).ToArray();
     }
 
     public string Name { get; set; }

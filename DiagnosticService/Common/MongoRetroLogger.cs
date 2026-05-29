@@ -72,21 +72,47 @@ public class MongoRetroLogger : IRetroLogger
         BsonClassMap.RegisterClassMap(map3);
     }
 
+    // Client-controlled filter patterns are run as server-side $regex; bound their length and
+    // the per-query server time so a crafted catastrophic regex can't peg a Mongo core.
+    private const int MaxFilterPatternLength = 256;
+    private const int MaxDeleteBatch = 10_000;
+    private static readonly TimeSpan QueryMaxTime = TimeSpan.FromSeconds(30);
+
+    private readonly Lazy<MongoClient> _client;
+
     public MongoRetroLogger(string connectionString)
     {
         ConnectionString = connectionString;
+        // MongoClient is meant to be a long-lived singleton (it owns a connection pool and
+        // topology-monitoring threads); cache one and reuse it across all operations rather than
+        // constructing a fresh one per call.
+        _client = new Lazy<MongoClient>(() => new MongoClient(ConnectionString));
     }
 
     public string ConnectionString { get; set; }
 
+    private IMongoCollection<T> GetLogCollection<T>() =>
+        _client.Value.GetDatabase("Diagnostics").GetCollection<T>("Log");
+
 
     public async Task<long> Delete(string[] recordList)
     {
-        MongoClient client = new(ConnectionString);
-        IMongoDatabase db = client.GetDatabase("Diagnostics");
-        IMongoCollection<RetroMsg> collection = db.GetCollection<RetroMsg>("Log");
+        if (recordList == null || recordList.Length == 0)
+            return 0;
+        if (recordList.Length > MaxDeleteBatch)
+            throw new ArgumentException($"Delete batch of {recordList.Length} exceeds the limit of {MaxDeleteBatch}");
 
-        ObjectId[] ids = recordList.Select(ObjectId.Parse).ToArray();
+        // TryParse: a single malformed id previously threw an unhandled FormatException out of
+        // the async method. Skip invalid ids instead.
+        List<ObjectId> ids = new(recordList.Length);
+        foreach (string s in recordList)
+            if (ObjectId.TryParse(s, out ObjectId id))
+                ids.Add(id);
+
+        if (ids.Count == 0)
+            return 0;
+
+        IMongoCollection<RetroMsg> collection = GetLogCollection<RetroMsg>();
 
         FilterDefinition<RetroMsg> filter = new ExpressionFilterDefinition<RetroMsg>(msg => ids.Contains(msg.RecordId));
 
@@ -97,16 +123,36 @@ public class MongoRetroLogger : IRetroLogger
         return result.DeletedCount;
     }
 
+    private static void ValidateFilterPattern(string value, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        if (value.Length > MaxFilterPatternLength)
+            throw new ArgumentException($"{field} search pattern exceeds {MaxFilterPatternLength} characters");
+        try
+        {
+            _ = new Regex(value, RegexOptions.IgnoreCase);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException($"{field} search is not a valid regular expression: {ex.Message}", ex);
+        }
+    }
+
     public async IAsyncEnumerable<RetroMsg[]> GetMessages(RetroQuery query, [EnumeratorCancellation] CancellationToken cancel)
     {
-        MongoClient client = new(ConnectionString);
-        IMongoDatabase db = client.GetDatabase("Diagnostics");
-        IMongoCollection<RetroMsg> collection = db.GetCollection<RetroMsg>("Log");
-        
+        ValidateFilterPattern(query.Machine, nameof(query.Machine));
+        ValidateFilterPattern(query.User, nameof(query.User));
+        ValidateFilterPattern(query.Process, nameof(query.Process));
+        ValidateFilterPattern(query.Message, nameof(query.Message));
+
+        IMongoCollection<RetroMsg> collection = GetLogCollection<RetroMsg>();
 
         FindOptions<RetroMsg> options = new() {
             Limit = query.MaxRecords,
             BatchSize = 250,
+            // Server-side time budget: aborts a query (incl. a catastrophic $regex) on the Mongo
+            // side rather than letting it run unbounded.
+            MaxTime = QueryMaxTime,
             Sort = Builders<RetroMsg>.Sort.Descending(msg => msg.Date)
         };
 
@@ -141,9 +187,7 @@ public class MongoRetroLogger : IRetroLogger
 
     public async Task WriteMessages(ICollection<DiagnosticMsg> msg, CancellationToken cancel)
     {
-        MongoClient client = new(ConnectionString);
-        IMongoDatabase database = client.GetDatabase("Diagnostics");
-        IMongoCollection<DiagnosticMsg> collection = database.GetCollection<DiagnosticMsg>("Log");
+        IMongoCollection<DiagnosticMsg> collection = GetLogCollection<DiagnosticMsg>();
         await collection.InsertManyAsync(msg, options: null, cancel);
     }
 }

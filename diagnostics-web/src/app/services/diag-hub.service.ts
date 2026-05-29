@@ -30,13 +30,18 @@ export class DiagHubService {
                     .withUrl(this.baseUrl)
                     .build();
 
-                this.connectionReady.next(connection);
-                await connection.start();
-                this.connectionStarted.next(connection);
                 connection.onreconnecting(err => console.log('Hub reconnecting', err))
                 connection.onreconnected(connectionId => console.log('Hub reconnected', connectionId))
                 connection.onclose(err => this.handleConnectionClosed(err));
+                await connection.start();
+
+                // Assign this.connection BEFORE emitting: subscribers (e.g. RealtimeModel's
+                // connectionStarted handler) call this.connection.invoke('Subscribe', ...). If the
+                // field were still undefined at emit time the re-subscribe would silently no-op,
+                // so after a reconnect the client would stop receiving realtime diagnostics.
                 this.connection = connection;
+                this.connectionReady.next(connection);
+                this.connectionStarted.next(connection);
             } catch (err) {
                 console.log(err);
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -45,13 +50,15 @@ export class DiagHubService {
     }
 
     async setPropertyValue(request: SetPropertyRequest): Promise<OperationResponse> {
-
-        let response = this.connection!.invoke<OperationResponse>(`SetProperty`, request);
+        // await the RPC: passing the un-awaited Promise to plainToInstance produced a default
+        // OperationResponse (isSuccess:false, empty errorMessage), so callers saw "Property set!"
+        // even when the hub returned an error.
+        const response = await this.connection!.invoke<OperationResponse>(`SetProperty`, request);
         return plainToInstance(OperationResponse, response);
     }
 
     async executeOperation(request: ExecOperationRequest): Promise<OperationResponse> {
-        let response = this.connection!.invoke<OperationResponse>(`ExecuteOperation`, request);
+        const response = await this.connection!.invoke<OperationResponse>(`ExecuteOperation`, request);
         return plainToInstance(OperationResponse, response);
     }
 

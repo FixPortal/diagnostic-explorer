@@ -68,13 +68,13 @@
           <mat-tab-group class="col-start-1 row-start-1 scope-tabs">
             <mat-tab label="Detail">
               <textarea class="bg-neutral-900 text-neutral-300 resize-none"
-              [contentEditable]="false" [textContent]="model.selectedEvent?.message"></textarea>
+                readonly
+                [value]="model.selectedEvent?.message ?? ''"></textarea>
             </mat-tab>
             <mat-tab label="Trace Scope">
               <textarea class="bg-neutral-900 text-neutral-300 resize-none"
-                [contentEditable]="false"
-                textContent="{{model.selectedEvent?.detail ?? model.selectedEvent?.message}}">
-              </textarea>
+                readonly
+                [value]="(model.selectedEvent?.detail ?? model.selectedEvent?.message) ?? ''"></textarea>
             </mat-tab>
           </mat-tab-group>
           <button (click)="model.hideTraceScope()"

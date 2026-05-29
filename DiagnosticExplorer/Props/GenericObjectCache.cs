@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,7 +8,10 @@ namespace DiagnosticExplorer
 {
 	internal static class GenericObjectCache
 	{
-		private static Dictionary<string, object> _objectCache = new Dictionary<string, object>(StringComparer.CurrentCultureIgnoreCase);
+		// Ordinal comparer: keys are Type.FullName concatenations, so culture-sensitive
+		// comparison (Turkish-I) could fold distinct type keys together. ConcurrentDictionary
+		// makes the check-then-set atomic on the thread-pool getter-build path.
+		private static readonly ConcurrentDictionary<string, object> _objectCache = new(StringComparer.Ordinal);
 
 		public static Type FindGenericInterface(Type targetType, Type interfaceType)
 		{
@@ -37,12 +41,11 @@ namespace DiagnosticExplorer
 																 genericType.FullName,
 																 string.Join(", ", typeArguments.Select(x => x.FullName).ToArray()));
 
-			if (!_objectCache.ContainsKey(key))
+			return (T)_objectCache.GetOrAdd(key, _ =>
 			{
 				Type type = genericType.MakeGenericType(typeArguments);
-				_objectCache[key] = Activator.CreateInstance(type);
-			}
-			return (T)_objectCache[key];
+				return Activator.CreateInstance(type);
+			});
 		}
 	}
 }
