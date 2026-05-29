@@ -11,6 +11,8 @@ public class DiagServiceSettings
     public string RetroConnection { get; set; } = "";
     public string[] Urls { get; set; } = [];
 
+    public SecuritySettings Security { get; set; } = new();
+
     public IRetroLogger CreateRetroLogger()
     {
         switch (RetroType.ToLower())

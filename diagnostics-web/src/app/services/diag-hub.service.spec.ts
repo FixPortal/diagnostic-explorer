@@ -36,7 +36,7 @@ describe('DiagHubService', () => {
         it('builds the connection, starts it, and publishes it to both subjects', async () => {
             const connection = fakeConnection();
             stubBuilder(connection);
-            const service = new DiagHubService('/diagnostics');
+            const service = new DiagHubService('/diagnostics', '');
 
             const ready = firstValueFrom(service.connectionReady);
             const started = firstValueFrom(service.connectionStarted);
@@ -56,7 +56,7 @@ describe('DiagHubService', () => {
             const failing = fakeConnection(jest.fn().mockRejectedValue(new Error('refused')));
             const working = fakeConnection();
             stubBuilder(failing, working);
-            const service = new DiagHubService('/diagnostics');
+            const service = new DiagHubService('/diagnostics', '');
 
             await service.connect();
 
@@ -71,7 +71,7 @@ describe('DiagHubService', () => {
         let connection: FakeConnection;
 
         beforeEach(() => {
-            service = new DiagHubService('/diagnostics');
+            service = new DiagHubService('/diagnostics', '');
             connection = fakeConnection();
             service.connection = connection as any;
         });

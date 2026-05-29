@@ -24,6 +24,7 @@ public class RegistrationHandler
 
     private string _url;
     private Registration _registration;
+    private string _apiKey;
 
     // _connLock guards the _connection/_hubAdapter pair. They are mutated from three racing
     // contexts — the registration loop (OpenHub/CloseConnection), the SignalR Closed event
@@ -42,10 +43,11 @@ public class RegistrationHandler
     private Action<HttpConnectionOptions> _configureHttp;
 
 
-    public RegistrationHandler(string url, Registration registration)
+    public RegistrationHandler(string url, Registration registration, string apiKey = null)
     {
         _url = url;
         _registration = registration;
+        _apiKey = apiKey;
     }
 
     public void Start(Action<HttpConnectionOptions> configureHttp = null)
@@ -170,10 +172,17 @@ public class RegistrationHandler
 
         Debug.WriteLine("Diagnostic RegistrationHandler constructing connection");
         HubConnection connection = new HubConnectionBuilder()
-            // Integrated Windows auth is now opt-in via the caller-supplied configureHttp. The old
-            // default forced UseDefaultCredentials=true, forwarding NTLM/Kerberos to whatever _url
-            // resolved to; the hub has no auth (H1), so that credential send was gratuitous. (M23)
-            .WithUrl(_url, _configureHttp ?? (options => { }))
+            .WithUrl(_url, options => {
+                // H1: when an API key is configured, send it via the access-token mechanism —
+                // "Authorization: Bearer <key>" on negotiate and "access_token" on the WS upgrade.
+                if (!string.IsNullOrEmpty(_apiKey))
+                    options.AccessTokenProvider = () => Task.FromResult(_apiKey);
+
+                // Integrated Windows auth is opt-in via configureHttp (caller can override the
+                // above). The old default forced UseDefaultCredentials=true, forwarding NTLM/Kerberos
+                // to whatever _url resolved to; the hub has no auth by default, so it was a leak. (M23)
+                _configureHttp?.Invoke(options);
+            })
             .Build();
 
         connection.Closed += HandleClosed;

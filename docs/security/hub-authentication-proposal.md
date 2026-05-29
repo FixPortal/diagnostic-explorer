@@ -1,8 +1,28 @@
-# DiagnosticService hub authentication & CORS — design proposal (opt-in)
+# DiagnosticService hub authentication & CORS — opt-in design
 
-Status: **proposal** (not yet implemented). Raised by the adversarial-review audit
-(2026-05-29) as findings **H1** (hubs expose mutating/reflective operations with no
-authentication) and **H2** (CORS reflects any origin with credentials).
+Status: **implemented** (opt-in, default `AuthMode: None` == prior behaviour). Raised by the
+adversarial-review audit (2026-05-29) as findings **H1** (hubs expose mutating/reflective
+operations with no authentication) and **H2** (CORS reflects any origin with credentials);
+implemented in reviewer-findings batch 9.
+
+## Operator guide — enabling auth
+
+1. Generate one or more API keys (any opaque high-entropy string) and set them in
+   `Config/settings.json` under `DiagServiceSettings:Security:ApiKeys`. Leave `AuthMode: None`
+   for now — clients still connect without a key.
+2. Configure each client to send a key while the server is still in `None` mode (they keep
+   working): set `DiagnosticOptions.ApiKey` for `.NET` diagnostic clients, and the SPA's
+   `environment.apiKey` (injected as `BASE_API_KEY`).
+3. Once every client sends a key, flip `AuthMode: ApiKey` and set
+   `AllowedCorsOrigins` to your real SPA origin(s). Now every hub connection (and the
+   negotiate request) must present a valid key, and CORS reflects only the allowlist.
+4. **Rotate** by adding the new key to `ApiKeys` (both old and new accepted), updating clients,
+   then removing the old key.
+
+Keys are matched with a fixed-time comparison and accepted from the `X-Diag-ApiKey` header, an
+`Authorization: Bearer` header (SignalR negotiate), or the `access_token` query string (the WS
+upgrade). When `AllowedCorsOrigins` is empty the service keeps the permissive any-origin policy
+but logs a startup warning.
 
 ## Constraint
 

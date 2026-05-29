@@ -4,7 +4,12 @@
     "RetroType": "mongo",
     "RetroConnection": "mongodb://localhost:27017",
     "UseSpaProxy":  false,
-    "Urls": []
+    "Urls": [],
+    "Security": {
+      "AuthMode": "None",
+      "ApiKeys": [],
+      "AllowedCorsOrigins": []
+    }
   },
 
   "DiagnosticExplorer": {
