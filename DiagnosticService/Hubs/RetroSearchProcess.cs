@@ -81,17 +81,16 @@ public class RetroSearchProcess
         {
             cancel.ThrowIfCancellationRequested();
 
-            int resultNumber = 0;
-
             IAsyncEnumerable<RetroMsg[]> results = _retroManager.GetRetroLog(Query, cancel);
             await foreach (RetroMsg[] messages in results.WithCancellation(cancel))
             {
                 cancel.ThrowIfCancellationRequested();
 
+                // No debug Info: the old `cancelled: {IsCancellationRequested}` was always false here
+                // (we ThrowIfCancellationRequested above) and was only ever console.logged client-side.
                 RetroSearchResult result = new() {
                     SearchId = Query.SearchId,
                     Results = messages,
-                    Info = $"Result {++resultNumber} cancelled: {cancel.IsCancellationRequested}"
                 };
                 channel.Writer.TryWrite(result);
             }
