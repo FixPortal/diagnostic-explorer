@@ -24,6 +24,29 @@ Keys are matched with a fixed-time comparison and accepted from the `X-Diag-ApiK
 upgrade). When `AllowedCorsOrigins` is empty the service keeps the permissive any-origin policy
 but logs a startup warning.
 
+## Security note — the SPA API key is NOT a secret (threat model)
+
+A cross-vendor adversarial review (2026-05-29) confirmed the limits of the browser side,
+so be explicit about what ApiKey mode does and does not provide:
+
+- **The SPA key is shipped in the JavaScript bundle.** `environment.apiKey` is a build-time
+  constant baked into `main.js`; any user who can load the dashboard can read it from DevTools
+  or the network tab. It is therefore **not confidential** — for browser clients the key only
+  blocks *fully anonymous* connections, it does not authenticate a *user* and it cannot be kept
+  from anyone able to load the app.
+- **What the API key genuinely protects:** the **.NET diagnostic clients** (per-process keys
+  held server-side, never shipped to a browser) and *machine-to-machine* callers. For those it
+  is a real shared-secret gate.
+- **For an internet-facing dashboard,** do not rely on the SPA key for real access control. Put
+  the dashboard behind a reverse proxy / IdP (or real user/session auth) and have the server
+  mint short-lived per-user tokens after an authenticated request, rather than handing every
+  browser the same long-lived shared key.
+- **The hardening shipped alongside this** narrows the blast radius: the .NET client refuses to
+  send a key over a non-TLS (`http`/`ws`) URL; `AuthMode: ApiKey` fails startup unless both a
+  non-empty `ApiKeys` list and an explicit CORS `AllowedCorsOrigins` allowlist are configured;
+  and the hub paths validate the `Origin` header directly (CORS does not police the WebSocket
+  upgrade). None of that makes the *browser-embedded* key secret — only real user auth does.
+
 ## Constraint
 
 The fix **must not break existing trusted-network deployments** or the EMS consumer

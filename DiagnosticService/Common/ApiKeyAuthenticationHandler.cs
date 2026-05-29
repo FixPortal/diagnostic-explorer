@@ -35,8 +35,11 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
     {
         string presented = ExtractKey();
 
+        // Fail (not NoResult) when no key is presented: ApiKey is the sole/default scheme, so a
+        // definitive failure keeps rejection unambiguous at every layer even if a second scheme or
+        // an AllowAnonymous policy is added later. (F5)
         if (string.IsNullOrEmpty(presented))
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return Task.FromResult(AuthenticateResult.Fail("No API key provided"));
 
         bool valid = _security.ApiKeys.Any(key => KeysEqual(key, presented));
         if (!valid)
@@ -50,8 +53,10 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 
     private string ExtractKey()
     {
+        // All paths are Trim()'d consistently — a whitespace-padded key (copy-paste, padding proxy)
+        // must not silently fail the fixed-time comparison. (F7)
         if (Request.Headers.TryGetValue(HeaderName, out var apiKeyHeader) && !string.IsNullOrEmpty(apiKeyHeader))
-            return apiKeyHeader.ToString();
+            return apiKeyHeader.ToString().Trim();
 
         // SignalR's AccessTokenProvider sends "Authorization: Bearer <key>" on the negotiate request.
         string auth = Request.Headers.Authorization.ToString();
@@ -60,7 +65,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 
         // ...and "access_token=<key>" on the WebSocket/SSE/long-polling requests.
         if (Request.Query.TryGetValue("access_token", out var token) && !string.IsNullOrEmpty(token))
-            return token.ToString();
+            return token.ToString().Trim();
 
         return null;
     }
