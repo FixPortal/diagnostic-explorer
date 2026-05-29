@@ -31,6 +31,13 @@ namespace DiagnosticExplorer.Log4Net
 
 		public string SmtpHost { get; set; }
 
+		/// <summary>Enable explicit TLS (STARTTLS) for the SMTP connection. Forced on when
+		/// <see cref="Authentication"/> is Basic so credentials never cross the wire in clear.</summary>
+		public bool EnableSsl { get; set; }
+
+		/// <summary>SMTP port; 0 (default) leaves the SmtpClient default (25, or 587 with TLS).</summary>
+		public int Port { get; set; }
+
 		public log4net.Appender.SmtpAppender.SmtpAuthentication Authentication { get; set; }
 
 		public string Username { get; set; }

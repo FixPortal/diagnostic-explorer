@@ -33,13 +33,23 @@ namespace DiagnosticExplorer.Log4Net
 		protected TimeSpan _timeout;
 		protected DateTime? _errorTime;
 
+		// Guards the failover state (_isInError + the nullable _errorTime). These are written by the
+		// append thread (DoAppend) and Reactivate (a [DiagnosticMethod], i.e. the diagnostic-walk
+		// thread) and read by StatusMessage on the walk thread; an unsynchronized nullable DateTime
+		// read can tear. (M17a)
+		private readonly object _stateLock = new();
+		private bool _isInError;
+
 
 		public AppenderProxyBase(TimeSpan timeout)
 		{
 			_timeout = timeout;
 		}
 
-		public bool IsInError { get; protected set; }
+		public bool IsInError
+		{
+			get { lock (_stateLock) return _isInError; }
+		}
 
 		[Property]
 		public DateTime? LastError { get; set; }
@@ -56,8 +66,11 @@ namespace DiagnosticExplorer.Log4Net
 		[DiagnosticMethod]
 		public void Reactivate()
 		{
-			IsInError = false;
-			_errorTime = null;
+			lock (_stateLock)
+			{
+				_isInError = false;
+				_errorTime = null;
+			}
 		}
 
 		[Property]
@@ -65,7 +78,9 @@ namespace DiagnosticExplorer.Log4Net
 
 		private TimeSpan? TimeUntilNextActive()
 		{
-			DateTime? time = _errorTime;
+			DateTime? time;
+			lock (_stateLock)
+				time = _errorTime;
 
 			if (!time.HasValue)
 				return null;
@@ -105,15 +120,19 @@ namespace DiagnosticExplorer.Log4Net
 
 		protected bool DoAppend(Func<AppendResult> appendAction)
 		{
-			if (ShouldResetError())
+			lock (_stateLock)
 			{
-				_errorTime = null;
-				IsInError = false;
+				if (ShouldResetErrorNoLock())
+				{
+					_errorTime = null;
+					_isInError = false;
+				}
+
+				if (_isInError)
+					return false;
 			}
 
-			if (IsInError)
-				return false;
-
+			// The append itself runs outside the lock (it can be slow I/O — SMTP send / file write).
 			AppendResult result = appendAction();
 			if (result.Success)
 			{
@@ -127,20 +146,24 @@ namespace DiagnosticExplorer.Log4Net
 				Errors.Register(1);
 				if (_timeout > TimeSpan.Zero)
 				{
-					_errorTime = SystemDateTime.UtcNow();
 					// Engage the fail-timeout quarantine. Without this the IsInError guard
 					// above never trips, ShouldResetError never runs, and a dead appender is
 					// retried on every event ("READY" forever).
-					IsInError = true;
+					lock (_stateLock)
+					{
+						_errorTime = SystemDateTime.UtcNow();
+						_isInError = true;
+					}
 				}
 			}
 
 			return result.Success;
 		}
 
-		private bool ShouldResetError()
+		// Caller must hold _stateLock.
+		private bool ShouldResetErrorNoLock()
 		{
-			if (!IsInError)
+			if (!_isInError)
 				return false;
 
 			if (_timeout <= TimeSpan.Zero)
@@ -178,7 +201,15 @@ namespace DiagnosticExplorer.Log4Net
 				if (!string.IsNullOrEmpty(SmtpHost) && !string.Equals(SmtpHost, SmtpAppender.DefaultHostName, StringComparison.CurrentCultureIgnoreCase))
 					smtpClient.Host = SmtpHost;
 
+				if (_appender.Port > 0)
+					smtpClient.Port = _appender.Port;
+
 				smtpClient.DeliveryMethod = SmtpDeliveryMethod.Network;
+
+				// Require TLS when sending Basic-auth credentials so username/password don't traverse
+				// the wire in clear; otherwise honour the configured EnableSsl. (M13)
+				smtpClient.EnableSsl = _appender.EnableSsl
+					|| _appender.Authentication == log4net.Appender.SmtpAppender.SmtpAuthentication.Basic;
 
 				if (_appender.Authentication == log4net.Appender.SmtpAppender.SmtpAuthentication.Basic)
 				{
