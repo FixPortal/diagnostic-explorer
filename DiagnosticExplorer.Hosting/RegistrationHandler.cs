@@ -24,6 +24,12 @@ public class RegistrationHandler
 
     private string _url;
     private Registration _registration;
+
+    // _connLock guards the _connection/_hubAdapter pair. They are mutated from three racing
+    // contexts — the registration loop (OpenHub/CloseConnection), the SignalR Closed event
+    // (HandleClosed) and Stop — so each teardown captures-and-nulls the pair atomically to
+    // guarantee a given connection/adapter is disposed exactly once.
+    private readonly object _connLock = new();
     private HubServerAdapter _hubAdapter;
     private HubConnection _connection;
 
@@ -81,8 +87,14 @@ public class RegistrationHandler
                     while (_hubAdapter == null)
                         await Task.Delay(TimeSpan.FromSeconds(1), cancel);
 
+                    // Snapshot: _hubAdapter can be nulled by HandleClosed/CloseConnection between
+                    // the wait above and the send below.
+                    HubServerAdapter adapter = _hubAdapter;
+                    if (adapter == null)
+                        continue;
+
                     Debug.WriteLine($"RegistrationHandler sending {data.Length} bytes");
-                    await _hubAdapter.LogEvents(data).ConfigureAwait(false);
+                    await adapter.LogEvents(data).ConfigureAwait(false);
                     watch2.Stop();
                     Debug.WriteLine($"RegistrationHandler sent {data.Length} bytes, zip/send took {watch1.ElapsedMilliseconds}ms/{watch2.ElapsedMilliseconds}ms");
                 }
@@ -94,9 +106,15 @@ public class RegistrationHandler
 
             Debug.WriteLine($"RunLoggingProcess HAS NOW STOPPED");
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
             Debug.WriteLine($"RegistrationHandler.RunLoggingProcess cancelled");
+        }
+        catch (ChannelClosedException)
+        {
+            // Stop() completes the channel during shutdown; a read racing that completion surfaces
+            // here rather than as OperationCanceledException. Expected on stop, not an error.
+            Debug.WriteLine($"RegistrationHandler.RunLoggingProcess channel closed");
         }
     }
 
@@ -125,11 +143,14 @@ public class RegistrationHandler
             }
             catch (Exception ex)
             {
-                //Something went wrong, so kill the connection and try again
-                await CloseConnection();
-
+                // On a genuine stop, leave the connection intact: Stop() owns teardown (it
+                // deregisters while the adapter is still valid, then disposes). Closing here would
+                // null _hubAdapter and make Stop's Deregister silently no-op. (M26)
                 if (cancelToken.IsCancellationRequested)
                     return;
+
+                //Something went wrong, so kill the connection and try again
+                await CloseConnection();
 
                 Debug.WriteLine($"RunRegistrationProcess exception {ex?.Message}");
                 string errorMessage = $"DiagnosticHostingService.RegistrationHandler for {_url} encountered an exception";
@@ -137,71 +158,84 @@ public class RegistrationHandler
             }
     }
 
-    private async Task CloseConnection()
+    private Task CloseConnection()
     {
-        _hubAdapter = null;
-        Debug.WriteLine($"CloseConnection _hubAdapter set to null");
-
-        HubConnection connection = _connection;
-        _connection = null;
-        try
-        {
-            if (connection != null)
-                await connection.DisposeAsync();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex);
-        }
+        return DisposeConnection(TakeConnection());
     }
 
     private async Task OpenHub()
     {
-        if (_hubAdapter == null)
+        if (_hubAdapter != null)
+            return;
+
+        Debug.WriteLine("Diagnostic RegistrationHandler constructing connection");
+        HubConnection connection = new HubConnectionBuilder()
+            // Integrated Windows auth is now opt-in via the caller-supplied configureHttp. The old
+            // default forced UseDefaultCredentials=true, forwarding NTLM/Kerberos to whatever _url
+            // resolved to; the hub has no auth (H1), so that credential send was gratuitous. (M23)
+            .WithUrl(_url, _configureHttp ?? (options => { }))
+            .Build();
+
+        connection.Closed += HandleClosed;
+
+        Debug.WriteLine("Diagnostic RegistrationHandler starting connection");
+        await connection.StartAsync(_stopToken.Token);
+
+        Debug.WriteLine("Diagnostic RegistrationHandler connection started");
+        HubServerAdapter adapter = new HubServerAdapter(connection);
+
+        lock (_connLock)
         {
-            Debug.WriteLine("Diagnostic RegistrationHandler constructing connection");
-            _connection = new HubConnectionBuilder()
-                .WithUrl(_url, _configureHttp ?? (options => {
-                    options.UseDefaultCredentials = true;
-                }))
-                .Build();
-
-            _connection.Closed += HandleClosed;
-
-            Debug.WriteLine("Diagnostic RegistrationHandler starting connection");
-            await _connection.StartAsync(_stopToken.Token);
-
-            Debug.WriteLine("Diagnostic RegistrationHandler connection started");
-            _hubAdapter = new HubServerAdapter(_connection);
+            _connection = connection;
+            _hubAdapter = adapter;
         }
     }
 
     private async Task HandleClosed(Exception ex)
     {
         Debug.WriteLine($"RegistrationHandler.HandleClosed {ex?.Message}");
-        HubConnection currentConnection = _connection;
-        HubServerAdapter currentAdapter = _hubAdapter;
+        await DisposeConnection(TakeConnection());
+    }
 
-        _connection = null;
-        _hubAdapter = null;
+    // Atomically detach the current connection/adapter pair. Whichever of CloseConnection /
+    // HandleClosed / Stop wins the lock gets the live instances; the losers get nulls and no-op,
+    // so a given connection+adapter is torn down exactly once.
+    private (HubConnection Connection, HubServerAdapter Adapter) TakeConnection()
+    {
+        lock (_connLock)
+        {
+            HubConnection connection = _connection;
+            HubServerAdapter adapter = _hubAdapter;
+            _connection = null;
+            _hubAdapter = null;
+            return (connection, adapter);
+        }
+    }
 
+    private async Task DisposeConnection((HubConnection Connection, HubServerAdapter Adapter) taken)
+    {
         try
         {
-            currentAdapter?.Dispose();
+            taken.Adapter?.Dispose(); // M25: tear the adapter down too, not just the connection.
         }
-        catch (Exception ex2)
+        catch (Exception ex)
         {
-            Trace.WriteLine("RegistrationHandler.HandleClosed HubServerAdapter.Dispose: " + ex2);
+            Trace.WriteLine("RegistrationHandler.DisposeConnection HubServerAdapter.Dispose: " + ex);
         }
 
+        if (taken.Connection == null)
+            return;
+
+        // Detach the Closed handler before disposing so DisposeAsync's own Closed callback can't
+        // re-enter HandleClosed and race this teardown. (M28)
+        taken.Connection.Closed -= HandleClosed;
         try
         {
-            if (currentConnection != null)
-                await currentConnection.DisposeAsync();
+            await taken.Connection.DisposeAsync();
         }
-        catch (Exception ex2)
+        catch (Exception ex)
         {
-            Trace.WriteLine("RegistrationHandler.HandleClosed HubConnection.DisposeAsync: " + ex2);
+            Trace.WriteLine("RegistrationHandler.DisposeConnection HubConnection.DisposeAsync: " + ex);
         }
     }
 
@@ -210,24 +244,32 @@ public class RegistrationHandler
         try
         {
             Task loopTask = _registrationLoop;
+            Task logTask = _loggingTask;
+
             _stopToken?.Cancel();
 
-            _logSubject?.OnCompleted();
+            // Capture+null the subject before completing it so a concurrent LogEvent can't NRE. (M27)
+            Subject<DiagnosticMsg> logSubject = _logSubject;
             _logSubject = null;
+            logSubject?.OnCompleted();
 
             _logChannel?.Writer.Complete();
             _logChannel = null;
 
             _registrationLoop = null;
+            _loggingTask = null;
             _stopToken = null;
 
+            // Drain both background tasks before tearing the connection down. (M26)
             if (loopTask != null)
                 await loopTask.ConfigureAwait(false);
+            if (logTask != null)
+                await logTask.ConfigureAwait(false);
 
+            // Deregister while the adapter is still live (the loop no longer closes the connection
+            // on cancellation), then dispose the connection + adapter. (M26, M25)
             await Deregister();
-
-            if (_connection != null)
-                await _connection.DisposeAsync();
+            await CloseConnection();
         }
         catch (Exception ex)
         {
@@ -237,12 +279,17 @@ public class RegistrationHandler
 
     private async Task Deregister()
     {
+        // Snapshot under the lock: HandleClosed could null _hubAdapter concurrently.
+        HubServerAdapter adapter;
+        lock (_connLock)
+            adapter = _hubAdapter;
+
         try
         {
-            if (_hubAdapter != null)
+            if (adapter != null)
             {
                 _log.Info("DiagnosticHostingService Deregistered");
-                await _hubAdapter.Deregister(_registration);
+                await adapter.Deregister(_registration);
                 Debug.WriteLine("Deregistered successfully");
             }
         }
@@ -255,6 +302,9 @@ public class RegistrationHandler
 
     public void LogEvent(DiagnosticMsg evt)
     {
-        _logSubject.OnNext(evt);
+        // Snapshot: Stop() completes and nulls _logSubject; a log event arriving during/after
+        // shutdown must be a no-op, not an NRE. (M27)
+        Subject<DiagnosticMsg> subject = _logSubject;
+        subject?.OnNext(evt);
     }
 }
