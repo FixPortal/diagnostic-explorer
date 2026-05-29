@@ -30,7 +30,8 @@ public class HubProxyBase
         string requestId = Guid.NewGuid().ToString("N");
         Task<T> task = Responses.GetResult<T>(requestId, _timeout, cancel);
         await send(requestId);
-        await task;
-        return task.Result;
+        // return await (not await + .Result): surfaces the original exception rather than an
+        // AggregateException, and avoids the sync-over-async .Result footgun.
+        return await task;
     }
 }

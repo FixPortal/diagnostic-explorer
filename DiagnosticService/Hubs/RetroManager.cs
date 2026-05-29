@@ -27,6 +27,7 @@ public class RetroManager : IHostedService
     private Channel<IList<DiagnosticMsg>>? _writeChannel;
     private Task? _loggingTask;
     private Subject<IList<DiagnosticMsg>>? _logSubject;
+    private IDisposable? _logSubscription;
     private long _writeQueueSize = 0;
     private readonly ConcurrentDictionary<string, RetroSearchProcess> _searches = new();
     public EventSink RetroEvents { get; } = EventSinkRepo.Default.GetSink("Retro Events", "Retro");
@@ -58,7 +59,8 @@ public class RetroManager : IHostedService
 
         _logSubject = new Subject<IList<DiagnosticMsg>>();
 
-        _logSubject.SelectMany(list => list)
+        // Keep the subscription so StopAsync can dispose it (was discarded → leaked across restarts).
+        _logSubscription = _logSubject.SelectMany(list => list)
             .Buffer(TimeSpan.FromSeconds(1), 50)
             .Where(evts => evts.Count != 0)
             .Subscribe(evts => {
@@ -75,12 +77,22 @@ public class RetroManager : IHostedService
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancel)
+    public async Task StopAsync(CancellationToken cancel)
     {
+        // Stop accepting input, then let the drain loop flush what's already queued before the
+        // host tears the process down. Previously StopAsync returned immediately without awaiting
+        // the drain or disposing the Rx subscription, so queued messages were lost on recycle.
+        _logSubject?.OnCompleted();
+        _logSubject = null;
+        _logSubscription?.Dispose();
+        _logSubscription = null;
+
         _writeChannel?.Writer.Complete();
 
-        _logSubject = null;
-        return Task.CompletedTask;
+        if (_loggingTask != null)
+            await Task.WhenAny(_loggingTask, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        (_logger as IDisposable)?.Dispose();
     }
 
     private async Task RunLoop(CancellationToken cancel)
@@ -139,7 +151,9 @@ public class RetroManager : IHostedService
         if (logSubject != null)
         {
             logSubject.OnNext(messages);
-            Interlocked.Add(ref _writeQueueSize, messages.Count);
+            // Do NOT increment _writeQueueSize here: the Rx subscription increments it when the
+            // batch is actually written to the channel (and skips it on DropWrite). Counting it
+            // here too double-counted the backlog and never reversed on a dropped write.
             EventsQueued.Register(messages.Count);
         }
     }

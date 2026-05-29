@@ -169,7 +169,10 @@ export class RetroModel {
         search.user = this.user;
         search.message = this.message;
 
-        const start = new Date(this.date.setHours(this.time));
+        // Copy before mutating: this.date.setHours(...) would mutate the bound date-picker
+        // field in place, so the UI date would jump to the chosen hour after a search.
+        const start = new Date(this.date);
+        start.setHours(this.time, 0, 0, 0);
         search.startDate = start.toISOString();
         search.endDate = new Date(start.valueOf() + this.hours * 60 * 60 * 1000).toISOString();
 

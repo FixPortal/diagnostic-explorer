@@ -145,7 +145,9 @@ public class RealtimeManager : IHostedService
 
     private void EnterConfigLock()
     {
-        if (!_configLockObj.TryEnterWriteLock(TimeSpan.FromSeconds(1000)))
+        // 10s fail-fast (was 1000s ≈ 16.7 min — under contention/deadlock that parked hub
+        // thread-pool threads long enough to starve the service). Config mutations acquire in ms.
+        if (!_configLockObj.TryEnterWriteLock(TimeSpan.FromSeconds(10)))
             throw new ApplicationException("Failed to obtain config write lock");
     }
 
@@ -163,6 +165,8 @@ public class RealtimeManager : IHostedService
 
             if (item == null)
                 throw new ApplicationException($"Can't find item '{id}'");
+
+            RemoveSubscription(item);
 
             if (item.ConnectionId != null)
                 GetClientHandler(item.ConnectionId)?.CloseConnection();
@@ -335,13 +339,17 @@ public class RealtimeManager : IHostedService
             foreach (DiagProcess proc in toRemove)
             {
                 _processes.TryRemove(proc.Id, out _);
+                RemoveSubscription(proc);
                 ProcessRemoved.OnNext(proc);
             }
         }
 
         DiagProcess[] expired = Processes.Where(HasExpired).ToArray();
         foreach (DiagProcess proc in expired)
+        {
             _processes.TryRemove(proc.Id, out _);
+            RemoveSubscription(proc);
+        }
     }
 
 
@@ -427,6 +435,15 @@ public class RealtimeManager : IHostedService
     {
         foreach (DiagnosticSubscription sub in _subscriptions.Values)
             sub.RemoveWebClient(client);
+    }
+
+    // Removing a process from _processes must also drop its subscription, else the
+    // DiagnosticSubscription (keyed by the removed DiagProcess) leaks for the process lifetime.
+    // SetDiagnosticClient(null) stops its polling loop (same teardown Deregister uses).
+    private void RemoveSubscription(DiagProcess process)
+    {
+        if (_subscriptions.TryRemove(process, out DiagnosticSubscription? sub))
+            sub.SetDiagnosticClient(null);
     }
 
 

@@ -104,7 +104,7 @@ namespace DiagnosticExplorer.Log4Net
 				bodyWriter.Write(Layout.Footer);
 
 
-			MailMessage message = new MailMessage();
+			using MailMessage message = new MailMessage();
 			message.Body = bodyWriter.ToString();
 			message.From = new MailAddress(From);
 			message.To.Add(To);

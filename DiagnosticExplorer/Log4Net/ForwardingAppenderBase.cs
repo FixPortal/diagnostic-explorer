@@ -30,8 +30,11 @@ namespace DiagnosticExplorer.Log4Net
 
 		public static void LogLogError(Type type, string msg, Exception exception = null)
 		{
-			if (exception != null)
-				Debug.WriteLine(exception);
+			// Route to log4net's internal log so appender/forwarding/async failures are visible
+			// in Release. Previously this ignored msg and only Debug.WriteLine'd a non-null
+			// exception, so dropped logs and failover problems left no trace.
+			Debug.WriteLine($"{msg} {exception}");
+			log4net.Util.LogLog.Error(type, msg, exception);
 		}
 
 		[RateProperty(ExposeRate = false, ExposeTotal =  true)]
