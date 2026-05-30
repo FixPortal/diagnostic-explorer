@@ -84,7 +84,7 @@ namespace WidgetSample
             StartDiagnostics();
             Closed += StopDiagnostics;
 
-            //Exposure the remoting interface
+            //Expose the remoting interface
             _gadgets = new BindingList<Gadget>();
             _widgets = new BindingList<Widget>();
 
@@ -114,8 +114,9 @@ namespace WidgetSample
 
         private static void StartDiagnostics()
         {
-            Debug.WriteLine($"Starting diagnostics with ????????????????????????????");
-            DiagnosticHostingService.Start(ConfigurationManager.AppSettings.Get("DiagnosticExplorerUri"));
+            string diagnosticExplorerUri = ConfigurationManager.AppSettings.Get("DiagnosticExplorerUri");
+            Debug.WriteLine($"Starting diagnostics with DiagnosticExplorerUri='{diagnosticExplorerUri ?? "(null)"}'");
+            DiagnosticHostingService.Start(diagnosticExplorerUri);
         }
 
         private void StopDiagnostics(object sender, EventArgs e)
@@ -130,7 +131,7 @@ namespace WidgetSample
         //		[CollectionProperty(CollectionMode.List, Category="Numbers")]
         public List<int> UpdateList { get; }
 
-        [Property(Category = "Gadgets", Description = "Max Gadeget Id")]
+        [Property(Category = "Gadgets", Description = "Max Gadget Id")]
         public int GadgetIdCount { get; private set; }
 
         [Property(Category = "Widgets")] public int WidgetIdCount { get; private set; }
