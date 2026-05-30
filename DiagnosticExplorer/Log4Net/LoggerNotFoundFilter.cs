@@ -38,7 +38,7 @@ namespace DiagnosticExplorer.Log4Net
 
 			Logger hlog = log?.Logger as Logger;
 
-			if (hlog?.Appenders.Count != 0)
+			if (hlog == null || hlog.Appenders.Count != 0)
 				return FilterDecision.Deny;
 
 			if (string.Compare(hlog.Parent?.Name, "ROOT", StringComparison.OrdinalIgnoreCase) != 0)
