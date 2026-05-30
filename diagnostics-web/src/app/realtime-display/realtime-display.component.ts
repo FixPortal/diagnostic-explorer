@@ -1,5 +1,4 @@
 import {Component, OnInit} from '@angular/core';
-import {AppModel} from '../Model/AppModel';
 import {RealtimeModel} from '../Model/RealtimeModel';
 
 @Component({

@@ -110,7 +110,7 @@ export class RetroModel {
             await this.hubService.cancelRetroSearch(searchId);
         } else {
             this.titleMessage = 'Searching...';
-            let query: RetroQuery = this.createSearchQuery()
+            let query: RetroQuery = this.createSearchQuery();
             this.results = [];
             this.filteredResults = [];
             this.currentSearchId = ++this.searchCount;

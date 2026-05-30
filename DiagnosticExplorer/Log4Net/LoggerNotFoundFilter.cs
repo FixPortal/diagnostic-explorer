@@ -41,7 +41,7 @@ namespace DiagnosticExplorer.Log4Net
 			if (hlog?.Appenders.Count != 0)
 				return FilterDecision.Deny;
 
-			if (string.Compare(hlog.Parent.Name, "ROOT", StringComparison.OrdinalIgnoreCase) != 0)
+			if (string.Compare(hlog.Parent?.Name, "ROOT", StringComparison.OrdinalIgnoreCase) != 0)
 				return FilterDecision.Deny;
 
 			return FilterDecision.Accept;

@@ -56,8 +56,6 @@ public class DiagnosticSubscription
             {
                 _eventSubscriptionRestartBlocked = false;
             }
-            string isNull = diagClient == null ? "NULL" : "NOT NULL";
-            //Debug.WriteLine($"@@@@@@@@@@ DiagnosticSubscription {Process.Id} client set to {isNull}");
             StartIfRequired();
         }
     }

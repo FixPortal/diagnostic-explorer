@@ -8,7 +8,6 @@ import {ExecOperationRequest} from './ExecOperationRequest';
 import {OperationResponse} from './SetPropertyRequest';
 import {Null} from '../util/Null';
 import {Clipboard} from '@angular/cdk/clipboard';
-import {DiagHubService} from '../services/diag-hub.service';
 
 export class ExecOperationsModel {
     finished = new Subject<void>();

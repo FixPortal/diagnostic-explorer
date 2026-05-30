@@ -1,4 +1,3 @@
-import {environment} from './../../environments/environment';
 
 export class ScopeNode {
     displayText: string = '';
@@ -53,7 +52,6 @@ export class ScopeNode {
         const displayLines = displayText.split(/\r\n|\r|\n/);
 
         var curCollapsibleRegion = undefined;
-        var blockString = '';
 
         for (let i = 0; i < displayLines.length - 1; i++) {
             let dl = displayLines[i].trim();
@@ -72,7 +70,7 @@ export class ScopeNode {
                  *  Add it to the overall list of text blocks
                  */
                 else if (curCollapsibleRegion) {
-                    curCollapsibleRegion = curCollapsibleRegion?.parentRegion
+                    curCollapsibleRegion = curCollapsibleRegion?.parentRegion;
 
                     if (curCollapsibleRegion?.isBegin) {
                         curCollapsibleRegion.addChild(newRegion);
