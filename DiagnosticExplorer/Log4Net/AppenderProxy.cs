@@ -238,7 +238,7 @@ namespace DiagnosticExplorer.Log4Net
 		/// Wraps up an <see cref="IAppender"/> adding extra behaviour to how to handle
 		/// an error while appending
 		/// </summary>
-		/// <param name="timeout">Amount of minutes to wait before attempting to append again while has error</param>
+		/// <param name="timeout">Duration to wait before attempting to append again after an error</param>
 		public AppenderProxy(IAppender appenderToWrap, TimeSpan timeout) : base(timeout)
 		{
 			AppenderSkeleton convertedAppender = appenderToWrap as AppenderSkeleton;
