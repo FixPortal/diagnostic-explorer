@@ -1,5 +1,4 @@
 import {Component, Inject, OnInit} from '@angular/core';
-import {PropModel} from '../Model/PropModel';
 import {MAT_DIALOG_DATA, MatDialogRef} from '@angular/material/dialog';
 import {PromptData, PromptResult} from '../util/PromptResult';
 
