@@ -65,7 +65,10 @@ export class RealtimeCategoryComponent implements OnInit {
     }
 
     showSetPropertyDialog(prop: PropModel): void {
-        const data = new PromptData(prop.getPropertyPath(), prop.value);
+        // Label the field with the human-friendly property name, not the internal pipe-delimited
+        // path (which also exposes an empty PropCategory segment, e.g. "Trading|OrderEngine||MaxOrders").
+        // The full path is still used for the write itself via setPropertyValue(prop, ...).
+        const data = new PromptData(prop.name, prop.value);
 
         const dialogRef = this.dialog.open(SetPropertyDialogComponent, {
             disableClose: true,

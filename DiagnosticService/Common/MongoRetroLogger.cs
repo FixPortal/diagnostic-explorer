@@ -87,12 +87,40 @@ public class MongoRetroLogger : IRetroLogger
         // topology-monitoring threads); cache one and reuse it across all operations rather than
         // constructing a fresh one per call.
         _client = new Lazy<MongoClient>(() => new MongoClient(ConnectionString));
+
+        // The retro query filters a Date range and sorts by Date descending. Without a Date
+        // index that is a full collection scan, so on any non-trivial Log collection every
+        // query trips the 30s MaxTime budget and the UI shows an empty "No events" result.
+        // Ensure the index exists. Fire-and-forget: the initial build on a large existing
+        // collection can take a long time, and it must not block construction or queries
+        // (which keep working — if slowly — until the build completes). CreateOne is a no-op
+        // when the index already exists, so this is safe to run on every startup.
+        _ = Task.Run(EnsureIndexesAsync);
     }
 
     public string ConnectionString { get; set; }
 
     private IMongoCollection<T> GetLogCollection<T>() =>
         _client.Value.GetDatabase("Diagnostics").GetCollection<T>("Log");
+
+    private async Task EnsureIndexesAsync()
+    {
+        try
+        {
+            IMongoCollection<RetroMsg> collection = GetLogCollection<RetroMsg>();
+            CreateIndexModel<RetroMsg> dateIndex = new(
+                Builders<RetroMsg>.IndexKeys.Descending(msg => msg.Date),
+                new CreateIndexOptions { Name = "Date_-1" });
+            await collection.Indexes.CreateOneAsync(dateIndex).ConfigureAwait(false);
+            _log.Info("Ensured Diagnostics.Log Date index for retro queries");
+        }
+        catch (Exception ex)
+        {
+            // Never let index maintenance break logging/queries; the feature still functions
+            // (just unindexed) and a later restart will retry.
+            _log.Warn("Failed to ensure Diagnostics.Log Date index", ex);
+        }
+    }
 
 
     public async Task<long> Delete(string[] recordList)

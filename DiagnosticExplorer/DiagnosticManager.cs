@@ -429,6 +429,16 @@ namespace DiagnosticExplorer
 				string resultString = OperationResultToString(result);
 				return OperationResponse.Success(resultString);
 			}
+			catch (TargetInvocationException ex) when (ex.InnerException != null)
+			{
+				// MethodInfo.Invoke wraps anything the operation body throws in a
+				// TargetInvocationException whose Message is the useless boilerplate
+				// "Exception has been thrown by the target of an invocation." Surface the
+				// real exception instead — for a diagnostics tool the whole point of running
+				// an operation is to learn why it failed.
+				Exception inner = ex.InnerException;
+				return OperationResponse.Error(inner.Message, inner.ToString());
+			}
 			catch (Exception ex)
 			{
 				return OperationResponse.Error(ex.Message, ex.ToString());
