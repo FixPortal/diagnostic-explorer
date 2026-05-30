@@ -22,19 +22,19 @@
 
       <ng-container matColumnDef="machineName">
         <th mat-header-cell class="pl-2" *matHeaderCellDef>Host</th>
-        <td mat-cell class="pl-2" *matCellDef="let item">{{ item.machineName }}</td>
+        <td mat-cell class="pl-2" *matCellDef="let item" [title]="item.machineName">{{ item.machineName }}</td>
       </ng-container>
 
       <ng-container matColumnDef="userName">
         <th mat-header-cell class="pl-2" *matHeaderCellDef>User</th>
-        <td mat-cell class="pl-2" *matCellDef="let item">{{ item.userName }}</td>
+        <td mat-cell class="pl-2" *matCellDef="let item" [title]="item.userName">{{ item.userName }}</td>
       </ng-container>
 
       <ng-container matColumnDef="processName">
         <th mat-header-cell class="pl-2" *matHeaderCellDef>Process</th>
         <td mat-cell class="pl-2 pr-0" *matCellDef="let item">
           <div class="grid grid-cols-1fr-auto w-full">
-            <span class="">{{ item.processName }}</span>
+            <span class="truncate" [title]="item.processName">{{ item.processName }}</span>
             <span class="ml-1 mr-0 w-4 alert-pill {{item.labelClass}}"></span>
           </div>
         </td>

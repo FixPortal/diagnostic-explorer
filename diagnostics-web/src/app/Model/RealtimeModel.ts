@@ -166,7 +166,6 @@ export class RealtimeModel {
 
     private performProcessSearch(): void {
 
-        console.log('Performing search');
         if (this.processSearch || this.onlineOnly) {
             let tester: Null<RegExp> = this.createFilterRegex();
 
@@ -249,7 +248,6 @@ export class RealtimeModel {
     }
 
     hideTraceScope() {
-        console.log('hideTraceScope');
         this.traceScopeVisible = false;
     }
 
@@ -361,6 +359,6 @@ export class RealtimeModel {
     }
 
     handleOnlineClick($evt: any) {
-        console.log($evt);
+        // The checkbox two-way-binds onlineOnly and triggers the filter; no extra work here.
     }
 }

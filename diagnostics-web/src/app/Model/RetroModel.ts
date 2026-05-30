@@ -207,7 +207,6 @@ export class RetroModel {
     }
 
     private onSearchComplete(cancelled = false, limitReached = false) {
-        console.log('OnSearchComplete 1', this.currentSearchId);
         const millis = new Date().valueOf() - this.searchStartTime!.valueOf();
         const time = millis > 1000
             ? (millis / 1000).toFixed(2) + 's'

@@ -3,6 +3,7 @@
         <mat-toolbar class="flex-grow-0 w-full h-12 bg-neutral-800 grid grid-cols-1 grid-rows-1 w-full">
             <label class="mat-primary col-start-1 row-start-1 justify-self-start">Diagnostic Explorer</label>
             <button [disabled]="!appModel.mainMessageCanClick"
+                    [class.invisible]="!appModel.mainMessage"
                     (click)="appModel.mainMessageClick()"
                     class="{{appModel.mainMessageClass}} col-start-1 row-start-1 justify-self-center">{{ appModel.mainMessage }}
             </button>

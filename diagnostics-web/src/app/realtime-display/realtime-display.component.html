@@ -24,7 +24,7 @@
         <div class="grid h-full detail-tabs">
           <mat-tab-group class="col-start-1 row-start-1 scope-tabs">
             <mat-tab label="Detail">
-              <textarea class="bg-neutral-900 text-neutral-300 resize-none"
+              <textarea class="w-full h-full bg-neutral-900 text-neutral-300 resize-none"
                 readonly
                 [value]="model.selectedEvent?.displayText ?? ''"></textarea>
             </mat-tab>
@@ -32,6 +32,8 @@
               @if (model?.selectedEvent?.region) {
                 <app-collapsible-region
                 [region]="model?.selectedEvent?.region"></app-collapsible-region>
+              } @else {
+                <div class="p-2 text-neutral-500 italic">No trace scope for this event.</div>
               }
             </mat-tab>
           </mat-tab-group>
