@@ -34,7 +34,7 @@ ConsoleApp/                  Smaller CLI demo
 Add the package reference:
 
 ```xml
-<PackageReference Include="DiagnosticExplorer.Hosting" Version="3.2.0" />
+<PackageReference Include="DiagnosticExplorer.Hosting" Version="3.2.1" />
 ```
 
 Wire into a `Host.CreateDefaultBuilder` pipeline:
@@ -186,7 +186,7 @@ Vulnerability check:
 dotnet list DiagnosticExplorer.sln package --vulnerable --include-transitive
 ```
 
-(Should report no vulnerable packages as of `3.2.0`.)
+(Should report no vulnerable packages as of `3.2.1`.)
 
 ## Container image
 
@@ -206,9 +206,11 @@ package's settings page on GitHub.
 
 ## Releases
 
-Current release: **3.2.0**.
+Current release: **3.2.1** — a patch over `3.2.0` (CodeQL triage + a dogfood
+pass: the Retro `Date`-index fix, operation-exception unwrap, and UI nits;
+defaults unchanged). `3.2.0` remains the headline feature release.
 
-Versions are tagged `v{semver}` (e.g. `v3.2.0`); pushing the tag
+Versions are tagged `v{semver}` (e.g. `v3.2.1`); pushing the tag
 triggers a container-image publish to GHCR.
 
 ## License

@@ -2,11 +2,13 @@
 
 **Baseline:** `da97212` (`Merge pull request #2 from DestructiveDude/main`) — the current tip of
 `upstream/main` (cell001nz/diagnostic-explorer) and the merge-base with this fork.
-**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document.
-**Span:** 35 commits · 151 files · +20,559 / −11,296.
+**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document (`0d68bab`).
+**Span:** 42 commits · 158 files · +21,853 / −11,333.
 **Package version:** `3.1.38` → **`3.2.0`** (NuGet `DiagnosticExplorer`). A minor bump: a new
 backward-compatible opt-in feature (hub auth/CORS), a major framework upgrade (Angular 13 → 21),
-and ~40 defect fixes. `3.1.38` was rebuilt during this work and is not reused.
+and ~40 defect fixes. `3.1.38` was rebuilt during this work and is not reused. Pure defect fixes
+that landed *after* the `v3.2.0` tag (CodeQL triage + a dogfood pass — Part 3b) are repackaged for
+internal consumers as **`3.2.1`**; for upstream they are simply part of this body of work.
 
 This document explains *what changed and why* for an upstream reviewer. The single most
 important property of this whole body of work:
@@ -17,8 +19,9 @@ important property of this whole body of work:
 > exactly as v3.1.38 did. The new auth/CORS controls only engage when an operator turns them on.
 
 History is preserved as a sequence of small, self-describing commits (the "test/build" series,
-then `reviewer-findings-batch1..10`, the H1/H2 feature, and its post-review hardening) so the
-large diff can be read one cohesive step at a time.
+then `reviewer-findings-batch1..10`, the H1/H2 feature and its post-review hardening, and finally
+the CodeQL-triage and dogfood-fix batches of Part 3b) so the large diff can be read one cohesive
+step at a time.
 
 ---
 
@@ -162,6 +165,38 @@ state across the `Task.Run` dispatch model; (2) an unauthenticated/over-permissi
 (4) silent-failure patterns (swallowed exceptions, dead code masking intent); (5) left-in debug
 logging.
 
+### Part 3b — Fixes after the `v3.2.0` tag (CodeQL triage + dogfood pass)
+
+Two further passes ran after the `v3.2.0` tag was cut. Both are pure defect/quality fixes behind
+unchanged defaults, repackaged for internal consumers as `3.2.1`.
+
+**CodeQL code-scanning triage (batches 12–14).** ~160 alerts were triaged; only genuine findings
+were fixed, the remainder dismissed-with-reason as false-positive or by-design (after the audit the
+codebase is clean, so few real alerts land). Genuine fixes:
+- `LoggerNotFoundFilter` — the root logger has a null `Parent`, so the appender-name path could NRE
+  on `hlog.Parent.Name`; guarded with `hlog.Parent?.Name` (a null parent then sorts `!= "ROOT"` →
+  `Deny`, preserving intent).
+- `DiagnosticSubscription` — removed a dead `isNull` local whose only consumer was a commented-out
+  `Debug.WriteLine`.
+- `diagnostics-web` — nine unused imports/locals removed and two missing semicolons inserted, each
+  verified referenced only on its own import line.
+
+**Dogfood pass (one High, one Medium, six Lows).** A hands-on pass over the running web UI against a
+live store surfaced:
+- **[High] Retro returned "No events" for every query at scale.** `Diagnostics.Log` had no `Date`
+  index, so the Retro date-range filter + date-descending sort full-scanned the collection (~188M
+  rows on the live store), tripped the 30 s `MaxTime`, and the timeout was rendered as an empty
+  result — writes were never affected, only reads. `MongoRetroLogger` now ensures a `{ Date: -1 }`
+  index on construction (idempotent, fire-and-forget so a long initial build on a large collection
+  blocks neither startup nor queries). Verified: 841 rows in ~0.0 s on the live store once indexed.
+- **[Medium] Operation exceptions showed the reflection wrapper text** ("Exception has been thrown
+  by the target of an invocation") instead of the real cause. `DiagnosticManager.ExecuteOperation`
+  now unwraps `TargetInvocationException` and surfaces the inner exception.
+- **[Low] UI polish:** set-property dialog labels the friendly property name (not the internal pipe
+  path); Process/Host/User cells get a title tooltip + truncate; the blank centre-toolbar button is
+  hidden when no process is selected; the Trace Scope tab shows an explicit empty-state; the Detail
+  exception textarea fills its panel; stray debug `console.log`s removed.
+
 ---
 
 ## Part 4 — Opt-in hub authentication & CORS (H1/H2), and its hardening
@@ -214,8 +249,9 @@ confirmed findings were hardened:
   credential-leak the hub never used).
 - **Target frameworks unchanged:** core library `netstandard2.0`; hosting `net8.0;net6.0;net48`;
   service `net8.0`.
-- **Package version:** publish as **3.2.0**. The EMS consumer picks up the rebuilt package via the
-  existing nupkg flow.
+- **Package version:** the headline release is **3.2.0** (git tag + Docker image). The internal
+  NuGet repackaged with the post-tag defect fixes (Part 3b) is **3.2.1**; the EMS consumer picks it
+  up via the existing local-feed nupkg flow. Neither `3.2.0` nor `3.1.38` is reused.
 - **Deferred, with rationale (not regressions):** Tailwind `important: true` (a visual-specificity
   change that needs a running-app pass, not a blind edit; the deprecated `~` SCSS import and the
   content-glob/darkMode issues *were* fixed); a small set of contested/by-design Low items
@@ -234,9 +270,54 @@ confirmed findings were hardened:
 
 ---
 
+## Part 7 — How this is proposed for upstream (PR strategy)
+
+The diff against `da97212` is **42 commits / 158 files / +21.8k / −11.3k**. That is far too large to
+review hunk-by-hunk as a single pull request, and squashing it would destroy the very thing that
+makes it reviewable — the curated sequence of small, self-describing commits aligned to the themes
+above. So the proposal is **document-first, then PRs shaped to your appetite**:
+
+1. **This document is the map.** Read it first; it is the review guide for the diff, not a
+   substitute for it. Every behavioural change is either a fix to a confirmed defect or gated behind
+   opt-in config whose default reproduces today's behaviour — so the large additive/upgrade parts
+   can be accepted quickly and scrutiny concentrated on the small behavioural surface.
+
+2. **Preferred shape — four thematic PRs along the seams the history already has,** stacked so each
+   rebases on the one before. This lets the safe parts merge immediately and the behavioural parts
+   be reviewed in isolation:
+   - **PR 1 — Tooling, tests, CI, Angular 13 → 21 (Part 1).** Purely additive / toolchain; no change
+     to the shipped library's runtime behaviour. Safe to accept first.
+   - **PR 2 — Audit remediation defect fixes (Parts 2–3; batches 1–8, 10).** The correctness /
+     concurrency / DoS / lifecycle fixes, each commit carrying its finding IDs.
+   - **PR 3 — Opt-in hub auth & CORS + hardening (Part 4; batch 9 + the hardening commit).** The one
+     new feature; off by default.
+   - **PR 4 — Post-tag fixes (Part 3b): CodeQL triage + the dogfood Retro-index/exception/UI fixes.**
+
+3. **Alternative — one umbrella PR** (`FixPortal:main` → `cell001nz:main`) whose description links
+   this document, if you would rather have the whole thing in one place and review via the doc.
+   Because the history is already themed, it can still be split into the four PRs above on request.
+
+**Mechanics / cautions:**
+- Base the PR(s) on `cell001nz/diagnostic-explorer@da97212` (current `upstream/main`); that is the
+  merge-base, so there are no surprise conflicts from upstream drift.
+- **Do not squash.** The reviewability of this work *is* the commit granularity; rebase-merge (or a
+  plain merge) preserves it.
+- `gh pr create` on this fork defaults its base to the `cell001nz` upstream remote — for an upstream
+  PR that is what we want; just confirm the base shows `cell001nz/diagnostic-explorer:main`, not the
+  FixPortal origin, before submitting.
+- The internal NuGet repackage (`3.2.1`) and the EMS rollout are FixPortal-side distribution steps
+  and are **not** part of any upstream PR.
+
+---
+
 ## Appendix — commit inventory (newest first, since `da97212`)
 
 ```
+Fix dogfood findings — Retro Date index (High), operation-exception unwrap (Medium), UI nits (Low)
+CodeQL triage batches 12–14 — genuine fixes (LoggerNotFoundFilter null-guard, dead locals, unused frontend imports); FP/by-design dismissed with rationale
+Add superpowers design + plan for the Angular 21 / test-modernization work (docs only)
+Fix dotnet-tests CI — correct the setup-dotnet pin
+Release v3.2.0 — bump version + this upstream change document
 Reviewer-findings batch 10 — final cleanup (M13/M17a/M34, WidgetSample M46/M48/M49/M50)
 Harden H1/H2 per adversarial review (fail-closed auth, TLS, hub Origin check)
 Reviewer-findings batch 9 — opt-in hub authentication & CORS (H1/H2)
