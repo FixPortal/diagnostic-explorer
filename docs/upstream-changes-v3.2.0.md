@@ -2,9 +2,10 @@
 
 **Baseline:** `da97212` (`Merge pull request #2 from DestructiveDude/main`) — the current tip of
 `upstream/main` (cell001nz/diagnostic-explorer) and the merge-base with this fork.
-**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document, including the
-post-`3.2.1` `TreatWarningsAsErrors` follow-up (`d1d8d7d`).
-**Span:** 44 commits · 160 files · +21,956 / −11,336 (plus this documentation commit).
+**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document (`65261b4`),
+including the post-`3.2.1` `TreatWarningsAsErrors` follow-up and the later main-branch maintenance
+(CI action currency + a Code Quality pass — Part 3c).
+**Span:** 50 commits · 172 files · +22,064 / −11,410 (plus this documentation commit).
 **Package version:** `3.1.38` → **`3.2.0`** (NuGet `DiagnosticExplorer`). A minor bump: a new
 backward-compatible opt-in feature (hub auth/CORS), a major framework upgrade (Angular 13 → 21),
 and ~40 defect fixes. `3.1.38` was rebuilt during this work and is not reused. Pure defect fixes
@@ -82,7 +83,8 @@ fixed along the way (`EventFilterComponent.loadCriteria` dropping level flags on
   publish.
 - **All GitHub Actions pinned to commit SHAs** (mutable tags on the `packages:write` publish job
   were the supply-chain risk) and a `dependabot.yml` (nuget + npm + github-actions) to keep the
-  SHA pins and dependencies maintained.
+  SHA pins and dependencies maintained. The pins are kept current — the Docker publish job's
+  actions were later re-pinned to their Node.js-24 releases (see Part 3c).
 
 ---
 
@@ -213,6 +215,41 @@ live store surfaced:
   hidden when no process is selected; the Trace Scope tab shows an explicit empty-state; the Detail
   exception textarea fills its panel; stray debug `console.log`s removed.
 
+### Part 3c — Code Quality pass + CI action currency (post-`3.2.1` main-branch maintenance)
+
+After `3.2.1`, two small maintenance passes landed directly on `main`. They are **not** packaged as
+a new NuGet release — they live on the fork's mainline for inclusion in the upstream PR. As with
+everything above, **runtime behaviour is unchanged**: the code changes are maintainability fixes or
+behaviour-preserving thread-safety, and the CI change touches only the build pipeline.
+
+**GitHub Code Quality (maintainability) triage.** A *separate* CodeQL surface from the
+code-*scanning* (security) triage in Part 3b — these are the maintainability rules surfaced at
+`/security/quality`. Most alerts were in the `WidgetSample` demo and are by-design (its purpose is
+to demonstrate logging exceptions at each severity, force a GC to show gadget removal, etc.) or are
+intentional operation-boundary `catch` handlers; those were dismissed-with-rationale in the UI. The
+genuine fixes:
+- `RetroManager.CancelRetroSearch` — collapse a nested `if` into one `&&` condition.
+- `RetroManager.RunLoop` — document the intentionally-empty `catch (OperationCanceledException)`
+  (expected on shutdown) so it no longer reads as a swallowed error.
+- `AsyncResultBucket._results` — mark `readonly` (only assigned at declaration).
+- `AppenderProxyBase.LastError` / `LastMessageSent` — back with fields guarded by the existing
+  `_stateLock` instead of plain auto-properties. They are written off-lock in `DoAppend` and read on
+  the diagnostic-walk thread, so the non-atomic nullable `DateTime` could tear; this extends the same
+  M17a guard already applied to `_isInError` / `_errorTime`.
+- `AppenderProxy` clarity (from a Copilot AI-findings review): an explicit `_errorTime.HasValue`
+  guard + `.Value` in `ShouldResetErrorNoLock` (same result as the prior null-safe nullable
+  subtraction, clearer intent), and a reworded ctor `InvalidOperationException`. Non-behavioural.
+
+One Copilot suggestion was **declined pending a maintainer decision**: changing `LoggerNotFoundFilter`
+to `Accept` when the logger is not found (`log == null`). The current logic only `Accept`s when the
+logger *exists*, is appender-less, and parents to `ROOT`; flipping the not-found case is a
+behavioural change whose intent isn't established, so it was left as-is.
+
+**CI action currency.** The Docker publish job's four `docker/*` actions (`setup-buildx`, `login`,
+`metadata`, `build-push`) were re-pinned from their Node.js-20 releases to the current Node.js-24
+ones, keeping the SHA-pin + version-comment convention, ahead of GitHub forcing Node-24 on
+2026-06-16 and removing Node-20 on 2026-09-16. No workflow inputs changed.
+
 ---
 
 ## Part 4 — Opt-in hub authentication & CORS (H1/H2), and its hardening
@@ -304,12 +341,14 @@ above. So the proposal is **document-first, then PRs shaped to your appetite**:
    be reviewed in isolation:
    - **PR 1 — Tooling, tests, CI, Angular 13 → 21 (Part 1),** including `TreatWarningsAsErrors` on
      the published projects (§1.4). Purely additive / toolchain; no change to the shipped library's
-     runtime behaviour. Safe to accept first.
+     runtime behaviour. Safe to accept first. The Node.js-24 Docker-action currency bump (Part 3c)
+     folds in here.
    - **PR 2 — Audit remediation defect fixes (Parts 2–3; batches 1–8, 10).** The correctness /
      concurrency / DoS / lifecycle fixes, each commit carrying its finding IDs.
    - **PR 3 — Opt-in hub auth & CORS + hardening (Part 4; batch 9 + the hardening commit).** The one
      new feature; off by default.
-   - **PR 4 — Post-tag fixes (Part 3b): CodeQL triage + the dogfood Retro-index/exception/UI fixes.**
+   - **PR 4 — Post-tag fixes (Parts 3b–3c): CodeQL code-scanning triage, the dogfood
+     Retro-index/exception/UI fixes, and the later Code Quality maintainability pass.**
 
 3. **Alternative — one umbrella PR** (`FixPortal:main` → `cell001nz:main`) whose description links
    this document, if you would rather have the whole thing in one place and review via the doc.
@@ -331,6 +370,12 @@ above. So the proposal is **document-first, then PRs shaped to your appetite**:
 ## Appendix — commit inventory (newest first, since `da97212`)
 
 ```
+Re-pin Docker build actions to Node.js-24 releases (Part 3c — CI action currency, no input changes)
+AppenderProxy clarity tweaks from the AI-findings pass (Part 3c — non-behavioural)
+Address CodeQL Code Quality findings (Part 3c — nested-if, empty-catch comment, readonly, AppenderProxy state locking)
+Centralize TreatWarningsAsErrors in Directory.Build.props (inherited once, not per-project)
+Clear DiagnosticService nullable warnings; enable TWAE on the host/demo projects
+Document the TreatWarningsAsErrors change in the upstream change doc
 Enable TreatWarningsAsErrors on the published library projects (CS warnings fail the build; Sonar stays advisory)
 Repackage as 3.2.1 and finalise the upstream change document
 Fix dogfood findings — Retro Date index (High), operation-exception unwrap (Medium), UI nits (Low)
