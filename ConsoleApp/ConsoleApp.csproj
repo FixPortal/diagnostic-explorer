@@ -5,10 +5,6 @@
 		<TargetFrameworks>net6.0</TargetFrameworks>
 		<AssemblyName>_ConsoleApp</AssemblyName>
 		<LangVersion>latest</LangVersion>
-		<!-- Compiler (CS) warnings break the build; Sonar (S####) analyzer findings stay
-		     advisory warnings per the repo-wide policy in Directory.Build.props. -->
-		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-		<CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
 	</PropertyGroup>
 
 

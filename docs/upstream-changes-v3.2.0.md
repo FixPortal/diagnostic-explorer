@@ -60,19 +60,21 @@ fixed along the way (`EventFilterComponent.loadCriteria` dropping level flags on
 - **C#:** `SonarAnalyzer.CSharp` as a private-asset `PackageReference` in a new
   `Directory.Build.props` (S3776 cognitive-complexity gate pinned to warning). 0 errors.
 - **Angular:** a minimal flat ESLint config with the SonarJS recommended set as warnings.
-- **Warnings-as-errors on the shipped library** (post-`3.2.1` follow-up): the two published NuGet
-  projects (`DiagnosticExplorer`, `DiagnosticExplorer.Hosting`) build with `TreatWarningsAsErrors`,
-  so no compiler (`CS`) warning can slip into a release. Sonar (`S####`) findings deliberately stay
-  advisory — because `CodeAnalysisTreatWarningsAsErrors` governs only the built-in .NET SDK
-  analyzers and **not** a third-party analyzer like Sonar (verified empirically), the full set of
-  Sonar rule IDs the solution emits is listed once in a global `WarningsNotAsErrors` in
-  `Directory.Build.props`. Enabling this surfaced and fixed three latent `CS` warnings in the core
-  library: two `CS0108` (the static `RpcResult<T>.Fail` factories intentionally hide the
-  same-signature base ones — marked `new`) and one `CS0414` (a dead `fixFlags` field shadowed by the
-  real `Fix` property). The host/demo projects (`DiagnosticService`, `WidgetSample`, `ConsoleApp`)
-  keep it off for now — `DiagnosticService` still carries ~62 mechanical nullable-reference
-  warnings — but the exemption list is already comprehensive, so each can be switched on
-  per-project as it is cleared. No runtime behaviour and no package version changes.
+- **Warnings-as-errors, solution-wide** (post-`3.2.1` follow-up): every project now builds with
+  `TreatWarningsAsErrors`, so no compiler (`CS`) warning can slip into a release. Sonar (`S####`)
+  findings deliberately stay advisory — because `CodeAnalysisTreatWarningsAsErrors` governs only the
+  built-in .NET SDK analyzers and **not** a third-party analyzer like Sonar (verified empirically),
+  the full set of Sonar rule IDs the solution emits is listed once in a global `WarningsNotAsErrors`
+  in `Directory.Build.props`. The setting is declared **once** in `Directory.Build.props` and
+  inherited by all projects, rather than repeated per-`.csproj` — so any project added later is
+  covered automatically, and the dead `CodeAnalysisTreatWarningsAsErrors=false` lines (a no-op
+  against Sonar) are gone. Rollout happened in stages: it first surfaced and fixed three latent `CS`
+  warnings in the core library — two `CS0108` (the static `RpcResult<T>.Fail` factories intentionally
+  hide the same-signature base ones — marked `new`) and one `CS0414` (a dead `fixFlags` field
+  shadowed by the real `Fix` property); then `DiagnosticService`'s ~62 mechanical nullable-reference
+  warnings were cleared and TWAE switched on for it and the `WidgetSample`/`ConsoleApp` demos;
+  finally the per-project declarations were collapsed into the single inherited one above. Solution
+  builds with 0 errors. No runtime behaviour and no package version changes.
 
 ### 1.5 CI / supply chain
 - `dotnet-tests.yml` (xUnit on ubuntu, scoped to the test project), `mutation-web.yml` (StrykerJS
