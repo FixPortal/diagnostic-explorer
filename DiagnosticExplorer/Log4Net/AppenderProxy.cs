@@ -33,12 +33,15 @@ namespace DiagnosticExplorer.Log4Net
 		protected TimeSpan _timeout;
 		protected DateTime? _errorTime;
 
-		// Guards the failover state (_isInError + the nullable _errorTime). These are written by the
-		// append thread (DoAppend) and Reactivate (a [DiagnosticMethod], i.e. the diagnostic-walk
-		// thread) and read by StatusMessage on the walk thread; an unsynchronized nullable DateTime
-		// read can tear. (M17a)
+		// Guards the failover state (_isInError + the nullable _errorTime) and the diagnostic
+		// timestamps (_lastError + _lastMessageSent). These are written by the append thread
+		// (DoAppend) and Reactivate (a [DiagnosticMethod], i.e. the diagnostic-walk thread) and
+		// read by StatusMessage / the [Property] getters on the walk thread; an unsynchronized
+		// nullable DateTime read can tear. (M17a)
 		private readonly object _stateLock = new();
 		private bool _isInError;
+		private DateTime? _lastError;
+		private DateTime? _lastMessageSent;
 
 
 		public AppenderProxyBase(TimeSpan timeout)
@@ -52,10 +55,18 @@ namespace DiagnosticExplorer.Log4Net
 		}
 
 		[Property]
-		public DateTime? LastError { get; set; }
+		public DateTime? LastError
+		{
+			get { lock (_stateLock) return _lastError; }
+			set { lock (_stateLock) _lastError = value; }
+		}
 
 		[Property]
-		public DateTime? LastMessageSent { get; set; }
+		public DateTime? LastMessageSent
+		{
+			get { lock (_stateLock) return _lastMessageSent; }
+			set { lock (_stateLock) _lastMessageSent = value; }
+		}
 
 		[RateProperty(ExposeRate = false, ExposeTotal = true)]
 		public RateCounter MessagesSent { get; } = new RateCounter(3);

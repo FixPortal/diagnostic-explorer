@@ -31,7 +31,7 @@ class AsyncCallException : ApplicationException
 
 public class AsyncResultBucket
 {
-    private ConcurrentDictionary<string, TaskCompletionSource<object>> _results = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<object>> _results = new();
 
     public void SetResult(RpcResult result, object returnValue)
     {
