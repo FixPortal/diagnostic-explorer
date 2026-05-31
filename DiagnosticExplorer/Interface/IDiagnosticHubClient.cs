@@ -62,10 +62,10 @@ namespace DiagnosticExplorer
         public static RpcResult<T> Success(string requestId, T result)
             => new() { RequestId = requestId, IsSuccess = true, Response = result };
 
-        public static RpcResult<T> Fail(string requestId, string message, string detail)
+        public static new RpcResult<T> Fail(string requestId, string message, string detail)
             => new() { RequestId = requestId, IsSuccess = false, Message = message, Detail = detail };
 
-        public static RpcResult<T> Fail(string requestId, Exception ex)
+        public static new RpcResult<T> Fail(string requestId, Exception ex)
             => new() { RequestId = requestId, IsSuccess = false, Message = ex.Message, Detail = ex.ToString() };
 
 

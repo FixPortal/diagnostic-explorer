@@ -9,6 +9,10 @@
     <FileVersion>3.2.1.0</FileVersion>
     <LangVersion>latest</LangVersion>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!-- Compiler (CS) warnings break the build; Sonar (S####) analyzer findings stay
+         advisory warnings per the repo-wide policy in Directory.Build.props. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
   </PropertyGroup>
 
   

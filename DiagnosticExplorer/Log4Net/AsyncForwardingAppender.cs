@@ -12,7 +12,6 @@ namespace DiagnosticExplorer.Log4Net
 	[DiagnosticClass(AttributedPropertiesOnly = true, DeclaringTypeOnly = false)]
 	public class AsyncForwardingAppender : ForwardingAppender, IDisposable
 	{
-		private FixFlags fixFlags = FixFlags.Partial;
 		private AsyncProcessor _processor;
 
 		public override void ActivateOptions()
