@@ -12,7 +12,7 @@ public class ProcessorBase
         _log = LogManager.GetLogger(GetType());
     }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public string Type => GetType().Name;
 

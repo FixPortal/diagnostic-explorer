@@ -6,17 +6,17 @@ namespace Diagnostics.Service.Common.Transport;
 
 public class Operation
 {
-    public string ReturnType { get; set; }
+    public string ReturnType { get; set; } = null!;
 
-    public string Signature { get; set; }
+    public string Signature { get; set; } = null!;
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public List<KeyValuePair<string, string>> Parameters { get; set; }
+    public List<KeyValuePair<string, string>> Parameters { get; set; } = new();
 
     public static List<Operation> GetOperationSet(string operationSetId, List<OperationSet> operationSets)
     {
-        OperationSet operationSet = operationSets.FirstOrDefault(x => x.Id == operationSetId);
+        OperationSet? operationSet = operationSets.FirstOrDefault(x => x.Id == operationSetId);
         if (operationSet == null)
             return new List<Operation>();
 

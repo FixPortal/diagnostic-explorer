@@ -15,7 +15,7 @@ public static class Program
             options.ServiceName = "DiagnosticExplorer";
         });
 
-        builder.Configuration.AddJsonFile(Expand(Path.Combine("Config", "settings.json")));
+        builder.Configuration.AddJsonFile(Expand(Path.Combine("Config", "settings.json"))!);
 
         builder.Services.Configure<DiagServiceSettings>(builder.Configuration.GetSection(nameof(DiagServiceSettings)));
         builder.Services.AddDiagnosticExplorer(builder.Configuration);
@@ -65,7 +65,7 @@ public static class Program
         });
 
         string spaDir = builder.Configuration.GetValue<string>("DiagServiceSettings:SpaDirectory")!;
-        string spaPath = Expand(spaDir);
+        string spaPath = Expand(spaDir)!;
         services.AddSpaStaticFiles(conf => { conf.RootPath = spaPath; });
 
         var app = builder.Build();

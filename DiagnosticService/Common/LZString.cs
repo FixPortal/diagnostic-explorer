@@ -37,10 +37,10 @@ public class LZString
             case 2: return res + "==";
             case 3: return res + "=";
         }
-        return null;
+        return res;
     }
 
-    public static string decompressFromBase64(string input)
+    public static string? decompressFromBase64(string input)
     {
         if (input == null) return "";
         if (input == "") return null;
@@ -53,7 +53,7 @@ public class LZString
         return _compress(input, 15, (a) => f(a + 32)) + " ";
     }
 
-    public static string decompressFromUTF16(string compressed)
+    public static string? decompressFromUTF16(string compressed)
     {
         if (compressed == null) return "";
         if (compressed == "") return null;
@@ -74,7 +74,7 @@ public class LZString
         return buf;
     }
 
-    public static string decompressFromUint8Array(byte[] compressed)
+    public static string? decompressFromUint8Array(byte[] compressed)
     {
         if (compressed == null) return "";
         else
@@ -99,7 +99,7 @@ public class LZString
         return _compress(input, 6, (a) => keyStrUriSafe[a]);
     }
 
-    public static string decompressFromEncodedURIComponent(string input)
+    public static string? decompressFromEncodedURIComponent(string input)
     {
         if (input == null) return "";
         if (input == "") return null;
@@ -384,7 +384,7 @@ public class LZString
         return context_data.ToString();
     }
 
-    public static string decompress(string compressed)
+    public static string? decompress(string compressed)
     {
         if (compressed == null) return "";
         if (compressed == "") return null;
@@ -396,7 +396,7 @@ public class LZString
     {
         public int val, position, index;
     }
-    private static string _decompress(int length, int resetValue, GetNextValue getNextValue)
+    private static string? _decompress(int length, int resetValue, GetNextValue getNextValue)
     {
         Dictionary<int, string> dictionary = new Dictionary<int, string>();
         int next, enlargeIn = 4, dictSize = 4, numBits = 3, i, bits, resb, maxpower, power;

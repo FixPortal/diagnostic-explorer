@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,16 +16,12 @@ class AsyncCallException : ApplicationException
     {
     }
 
-    protected AsyncCallException(SerializationInfo info, StreamingContext context) : base(info, context)
-    {
-    }
-
     public AsyncCallException(string? message, string? detail) : base(message)
     {
         Detail = detail;
     }
 
-    public string Detail { get; set; }
+    public string? Detail { get; set; }
 
     public override string ToString()
     {

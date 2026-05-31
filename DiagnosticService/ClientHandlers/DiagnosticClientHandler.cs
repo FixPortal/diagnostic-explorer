@@ -17,7 +17,7 @@ public class DiagnosticClientHandler : HubProxyBase, IDiagnosticClient
 {
     private readonly IDiagnosticHubClient _client;
     private readonly HubCallerContext _callerContext;
-    public event EventHandler Disconnected;
+    public event EventHandler? Disconnected;
     public Subject<SystemEvent[]> EventsSet { get; } = new();
     public Subject<SystemEvent[]> EventsStreamed { get; } = new();
 
@@ -41,7 +41,7 @@ public class DiagnosticClientHandler : HubProxyBase, IDiagnosticClient
     // Pass the caller's ConnectionAborted token (not CancellationToken.None): if the client
     // disconnects mid-request, the pending TaskCompletionSource in the shared response bucket is
     // released immediately rather than lingering until the round-trip timeout elapses.
-    public Task<OperationResponse> SetProperty(string path, string value)
+    public Task<OperationResponse> SetProperty(string path, string? value)
     {
         return SendRequest<OperationResponse>(_callerContext.ConnectionAborted, requestId => _client.SetProperty(requestId, path, value));
     }

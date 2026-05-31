@@ -137,7 +137,7 @@ public class RealtimeManager : IHostedService
 
     private void HandleClientDisconnected(object? sender, EventArgs e)
     {
-        DiagnosticClientHandler client = (DiagnosticClientHandler) sender;
+        DiagnosticClientHandler client = (DiagnosticClientHandler) sender!;
         RealtimEvents.Notice($"Client {client.ConnectionId} disconnected");
         Deregister(client);
     }

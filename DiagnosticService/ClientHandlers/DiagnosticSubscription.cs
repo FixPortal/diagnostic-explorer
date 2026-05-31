@@ -155,9 +155,9 @@ public class DiagnosticSubscription
         IDisposable? eventSetSubscription = null;
         IDisposable? eventStreamSubscription = null;
         eventStreamSubscription = diagnosticClient.EventsStreamed.Subscribe(evt =>
-            HandleStreamedEventsArrived(diagnosticClient, eventSetSubscription!, eventStreamSubscription, evt));
+            HandleStreamedEventsArrived(diagnosticClient, eventSetSubscription!, eventStreamSubscription!, evt));
         eventSetSubscription = diagnosticClient.EventsSet.Subscribe(events =>
-            HandleInitialEventsArrived(diagnosticClient, eventSetSubscription, eventStreamSubscription!, events));
+            HandleInitialEventsArrived(diagnosticClient, eventSetSubscription!, eventStreamSubscription!, events));
         _eventSubscriptionOwnerClient = diagnosticClient;
         _eventSetSubscription = eventSetSubscription;
         _eventStreamSubscription = eventStreamSubscription;

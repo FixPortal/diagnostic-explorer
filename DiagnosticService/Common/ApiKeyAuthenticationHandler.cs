@@ -33,7 +33,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        string presented = ExtractKey();
+        string? presented = ExtractKey();
 
         // Fail (not NoResult) when no key is presented: ApiKey is the sole/default scheme, so a
         // definitive failure keeps rejection unambiguous at every layer even if a second scheme or
@@ -51,7 +51,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 
-    private string ExtractKey()
+    private string? ExtractKey()
     {
         // All paths are Trim()'d consistently — a whitespace-padded key (copy-paste, padding proxy)
         // must not silently fail the fixed-time comparison. (F7)
@@ -70,7 +70,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         return null;
     }
 
-    private static bool KeysEqual(string configured, string presented)
+    private static bool KeysEqual(string configured, string? presented)
     {
         if (string.IsNullOrEmpty(configured) || presented == null)
             return false;

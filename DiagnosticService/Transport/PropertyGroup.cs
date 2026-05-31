@@ -4,9 +4,9 @@ namespace Diagnostics.Service.Common.Transport;
 
 public class PropertyGroup
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public Property[] Properties { get; set; }
+    public Property[] Properties { get; set; } = Array.Empty<Property>();
 
     public static List<PropertyGroup> Map(string path, List<DiagnosticExplorer.Category> propertyGroups)
     {

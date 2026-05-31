@@ -16,15 +16,15 @@ namespace Diagnostics.Service.Common.Transport
 
         public DateTime Date { get; set; }
 
-        public string Machine { get; set; }
+        public string Machine { get; set; } = null!;
 
-        public string Process { get; set; }
+        public string Process { get; set; } = null!;
 
-        public string User { get; set; }
+        public string User { get; set; } = null!;
 
-        public string Category { get; set; }
+        public string Category { get; set; } = null!;
 
-        public string Message { get; set; }
+        public string Message { get; set; } = null!;
 
         [JsonIgnore]
         public ObjectId RecordId { get; set; }

@@ -58,7 +58,6 @@ namespace WidgetSample
 
         private string _infoText;
         private Timer _listTestTimer;
-        private Task _autoLogTask;
         private Timer _scopeTimer;
         private Task _scopeTask;
 
