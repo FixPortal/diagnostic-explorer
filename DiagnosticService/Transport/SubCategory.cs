@@ -16,13 +16,13 @@ public class SubCategory
         PropertyGroups = PropertyGroup.Map(Path, subcategory.Categories).ToArray();
     }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public PropertyGroup[] PropertyGroups { get; set; } = Array.Empty<PropertyGroup>();
 
     public SystemEvent[] Events { get; set; } = Array.Empty<SystemEvent>();
 
-    public string Path { get; set; }
+    public string Path { get; set; } = null!;
 
     public Operation[] Operations { get; set; } = Array.Empty<Operation>();
 

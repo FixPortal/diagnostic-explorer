@@ -37,7 +37,7 @@ namespace DiagnosticExplorer.Common;
 
 public class DiagProcess
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     public string? InstanceId { get; set; }
 

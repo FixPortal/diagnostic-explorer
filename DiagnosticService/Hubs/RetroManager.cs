@@ -32,6 +32,16 @@ public class RetroManager : IHostedService
     private readonly ConcurrentDictionary<string, RetroSearchProcess> _searches = new();
     public EventSink RetroEvents { get; } = EventSinkRepo.Default.GetSink("Retro Events", "Retro");
 
+    // _logger and _writeChannel are only populated once StartAsync has run (and nulled out by
+    // StopAsync). Every consumer below runs while the hosted service is started, so accessing them
+    // before/after that is a programming error — surface it as a clear InvalidOperationException
+    // rather than a bare NullReferenceException.
+    private IRetroLogger Logger =>
+        _logger ?? throw new InvalidOperationException("RetroManager has not been started");
+
+    private Channel<IList<DiagnosticMsg>> WriteChannel =>
+        _writeChannel ?? throw new InvalidOperationException("RetroManager has not been started");
+
 
     private readonly IHostApplicationLifetime _lifetime;
 
@@ -101,7 +111,7 @@ public class RetroManager : IHostedService
     {
         try
         {
-            await foreach (var messages in _writeChannel.Reader.ReadAllAsync(cancel))
+            await foreach (var messages in WriteChannel.Reader.ReadAllAsync(cancel))
                 await TryLog(messages, cancel);
         }
         catch (OperationCanceledException) {}
@@ -109,7 +119,7 @@ public class RetroManager : IHostedService
 
 
     public long WriteQueueSize => _writeQueueSize;
-    public int ItemsInQueue => _writeChannel.Reader.CanCount ? _writeChannel.Reader.Count : -1;
+    public int ItemsInQueue => WriteChannel.Reader.CanCount ? WriteChannel.Reader.Count : -1;
 
     [ExtendedProperty]
     public DiagServiceSettings Options { get; set; }
@@ -127,7 +137,7 @@ public class RetroManager : IHostedService
         {
             try
             {
-                await _logger.WriteMessages(messages, cancel);
+                await Logger.WriteMessages(messages, cancel);
                 Interlocked.Add(ref _writeQueueSize, -1 * messages.Count);
                 EventsWritten.Register(messages.Count);
                 break;
@@ -142,7 +152,7 @@ public class RetroManager : IHostedService
 
     public IAsyncEnumerable<RetroMsg[]> GetRetroLog(RetroQuery query, CancellationToken cancel)
     {
-        return _logger.GetMessages(query, cancel);
+        return Logger.GetMessages(query, cancel);
     }
 
 
@@ -180,7 +190,7 @@ public class RetroManager : IHostedService
     {
         RetroEvents.Info($"Retro delete starting {idList.Length} messages");
 
-        return _logger.Delete(idList);
+        return Logger.Delete(idList);
     }
 
     private void HandleSearchFinished(object? sender, EventArgs e)

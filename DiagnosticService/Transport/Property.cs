@@ -4,13 +4,13 @@ namespace Diagnostics.Service.Common.Transport;
 
 public class Property
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public string Value { get; set; }
+    public string Value { get; set; } = null!;
 
     public bool CanSet { get; set; }
 
-    public string Path { get; set; }
+    public string? Path { get; set; }
 
     public static List<Property> Map(string path, List<DiagnosticExplorer.Property> properties)
     {

@@ -13,7 +13,7 @@ public class Category
         Name = name;
     }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public List<SubCategory> SubCategories { get; set; } = new();
 

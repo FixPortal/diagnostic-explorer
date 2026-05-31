@@ -151,7 +151,7 @@ public class MongoRetroLogger : IRetroLogger
         return result.DeletedCount;
     }
 
-    private static void ValidateFilterPattern(string value, string field)
+    private static void ValidateFilterPattern(string? value, string field)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         if (value.Length > MaxFilterPatternLength)

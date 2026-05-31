@@ -2,11 +2,11 @@
 
 public class Node
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public string Uri { get; set; }
+    public string Uri { get; set; } = null!;
 
-    public string ParentId { get; set; }
+    public string? ParentId { get; set; }
 }

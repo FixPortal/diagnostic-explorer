@@ -15,7 +15,7 @@ public class RetroSearchProcess
     public RetroQuery Query { get; }
     private CancellationTokenSource _cancelToken = new();
     private readonly RetroManager _retroManager;
-    public event EventHandler Finished;
+    public event EventHandler? Finished;
     public string ClientId { get; }
     private Stopwatch _watch = new Stopwatch();
 
