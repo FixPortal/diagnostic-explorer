@@ -2,8 +2,9 @@
 
 **Baseline:** `da97212` (`Merge pull request #2 from DestructiveDude/main`) — the current tip of
 `upstream/main` (cell001nz/diagnostic-explorer) and the merge-base with this fork.
-**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document (`0d68bab`).
-**Span:** 42 commits · 158 files · +21,853 / −11,333.
+**Head:** the `FixPortal/diagnostic-explorer` `main` at the time of this document, including the
+post-`3.2.1` `TreatWarningsAsErrors` follow-up (`d1d8d7d`).
+**Span:** 44 commits · 160 files · +21,956 / −11,336 (plus this documentation commit).
 **Package version:** `3.1.38` → **`3.2.0`** (NuGet `DiagnosticExplorer`). A minor bump: a new
 backward-compatible opt-in feature (hub auth/CORS), a major framework upgrade (Angular 13 → 21),
 and ~40 defect fixes. `3.1.38` was rebuilt during this work and is not reused. Pure defect fixes
@@ -59,6 +60,19 @@ fixed along the way (`EventFilterComponent.loadCriteria` dropping level flags on
 - **C#:** `SonarAnalyzer.CSharp` as a private-asset `PackageReference` in a new
   `Directory.Build.props` (S3776 cognitive-complexity gate pinned to warning). 0 errors.
 - **Angular:** a minimal flat ESLint config with the SonarJS recommended set as warnings.
+- **Warnings-as-errors on the shipped library** (post-`3.2.1` follow-up): the two published NuGet
+  projects (`DiagnosticExplorer`, `DiagnosticExplorer.Hosting`) build with `TreatWarningsAsErrors`,
+  so no compiler (`CS`) warning can slip into a release. Sonar (`S####`) findings deliberately stay
+  advisory — because `CodeAnalysisTreatWarningsAsErrors` governs only the built-in .NET SDK
+  analyzers and **not** a third-party analyzer like Sonar (verified empirically), the full set of
+  Sonar rule IDs the solution emits is listed once in a global `WarningsNotAsErrors` in
+  `Directory.Build.props`. Enabling this surfaced and fixed three latent `CS` warnings in the core
+  library: two `CS0108` (the static `RpcResult<T>.Fail` factories intentionally hide the
+  same-signature base ones — marked `new`) and one `CS0414` (a dead `fixFlags` field shadowed by the
+  real `Fix` property). The host/demo projects (`DiagnosticService`, `WidgetSample`, `ConsoleApp`)
+  keep it off for now — `DiagnosticService` still carries ~62 mechanical nullable-reference
+  warnings — but the exemption list is already comprehensive, so each can be switched on
+  per-project as it is cleared. No runtime behaviour and no package version changes.
 
 ### 1.5 CI / supply chain
 - `dotnet-tests.yml` (xUnit on ubuntu, scoped to the test project), `mutation-web.yml` (StrykerJS
@@ -262,7 +276,8 @@ confirmed findings were hardened:
 
 ## Part 6 — Verification
 
-- Full solution builds **0 errors** (Debug & Release).
+- Full solution builds **0 errors** (Debug & Release); the two published library projects build
+  **warnings-as-errors** clean (Sonar findings remain advisory warnings).
 - .NET unit suite: **76/76** green.
 - Frontend: Jest **71/71** green; `ng build` (production) succeeds.
 - The complete integrated tree (all batches together) was built and tested green before this
@@ -285,8 +300,9 @@ above. So the proposal is **document-first, then PRs shaped to your appetite**:
 2. **Preferred shape — four thematic PRs along the seams the history already has,** stacked so each
    rebases on the one before. This lets the safe parts merge immediately and the behavioural parts
    be reviewed in isolation:
-   - **PR 1 — Tooling, tests, CI, Angular 13 → 21 (Part 1).** Purely additive / toolchain; no change
-     to the shipped library's runtime behaviour. Safe to accept first.
+   - **PR 1 — Tooling, tests, CI, Angular 13 → 21 (Part 1),** including `TreatWarningsAsErrors` on
+     the published projects (§1.4). Purely additive / toolchain; no change to the shipped library's
+     runtime behaviour. Safe to accept first.
    - **PR 2 — Audit remediation defect fixes (Parts 2–3; batches 1–8, 10).** The correctness /
      concurrency / DoS / lifecycle fixes, each commit carrying its finding IDs.
    - **PR 3 — Opt-in hub auth & CORS + hardening (Part 4; batch 9 + the hardening commit).** The one
@@ -313,6 +329,8 @@ above. So the proposal is **document-first, then PRs shaped to your appetite**:
 ## Appendix — commit inventory (newest first, since `da97212`)
 
 ```
+Enable TreatWarningsAsErrors on the published library projects (CS warnings fail the build; Sonar stays advisory)
+Repackage as 3.2.1 and finalise the upstream change document
 Fix dogfood findings — Retro Date index (High), operation-exception unwrap (Medium), UI nits (Low)
 CodeQL triage batches 12–14 — genuine fixes (LoggerNotFoundFilter null-guard, dead locals, unused frontend imports); FP/by-design dismissed with rationale
 Add superpowers design + plan for the Angular 21 / test-modernization work (docs only)
