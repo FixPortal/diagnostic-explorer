@@ -180,7 +180,12 @@ namespace DiagnosticExplorer.Log4Net
 			if (_timeout <= TimeSpan.Zero)
 				return true;
 
-			return (SystemDateTime.UtcNow() - _errorTime) >= _timeout;
+			// _isInError implies _errorTime was set; guard explicitly so the intent is clear
+			// and a future invariant break can't silently rely on nullable arithmetic.
+			if (!_errorTime.HasValue)
+				return false;
+
+			return (SystemDateTime.UtcNow() - _errorTime.Value) >= _timeout;
 		}
 	}
 
@@ -254,7 +259,7 @@ namespace DiagnosticExplorer.Log4Net
 		{
 			AppenderSkeleton convertedAppender = appenderToWrap as AppenderSkeleton;
 			if (convertedAppender == null)
-				throw new InvalidOperationException("Cannot use AppenderProxy with an appender that does not inherit from AppenderSkeleton as it needs to hook into the IErrorHandler, to gather errors.");
+				throw new InvalidOperationException("AppenderProxy requires an AppenderSkeleton-derived appender in order to hook into the IErrorHandler and gather errors.");
 
 			Appender = convertedAppender;
 
