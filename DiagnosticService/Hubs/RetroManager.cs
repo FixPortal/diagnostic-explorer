@@ -114,7 +114,10 @@ public class RetroManager : IHostedService
             await foreach (var messages in WriteChannel.Reader.ReadAllAsync(cancel))
                 await TryLog(messages, cancel);
         }
-        catch (OperationCanceledException) {}
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown when the cancellation token trips; nothing to do.
+        }
     }
 
 
@@ -202,13 +205,11 @@ public class RetroManager : IHostedService
 
     public Task CancelRetroSearch(int searchId, string connectionId)
     {
-        if (_searches.TryGetValue(connectionId, out RetroSearchProcess? running))
+        if (_searches.TryGetValue(connectionId, out RetroSearchProcess? running)
+            && running.Query.SearchId == searchId)
         {
-            if (running.Query.SearchId == searchId)
-            {
-                running.Cancel();
-                _searches.TryRemove(connectionId, out _);
-            }
+            running.Cancel();
+            _searches.TryRemove(connectionId, out _);
         }
 
         return Task.CompletedTask;
