@@ -23,15 +23,26 @@ function diagnostics(): DiagnosticResponse {
         propertyBags: [Object.assign(new PropertyBag(), {
             name: fencedName, category: 'Trading', canDrillDown: false, operationSet: 'nested-ops',
             categories: [Object.assign(new Category(), {
-                name: 'State', canDrillDown: true,
+                name: 'State', canDrillDown: true, operationSet: 'group-ops',
                 properties: [Object.assign(new Property(), {
-                    name: 'Order', value: 'Order value', canSet: true, canDrillDown: true,
+                    name: 'Order', value: 'Order value', canSet: true, canDrillDown: true, operationSet: 'property-ops',
                     canJsonHover: true, canExpandedHover: true, drillDownText: 'Open order'
+                })]
+            }), Object.assign(new Category(), {
+                name: '', operationSet: 'group-ops',
+                properties: [Object.assign(new Property(), {
+                    name: 'Price', value: '10', operationSet: 'property-ops'
+                }), Object.assign(new Property(), {
+                    name: 'Passive', value: 'No operations'
                 })]
             })]
         })],
         operationSets: [Object.assign(new OperationSet(), {
-            id: 'nested-ops', operations: [Object.assign(new Operation(), {signature: 'Reset()'})]
+            id: 'nested-ops', operations: [Object.assign(new Operation(), {signature: 'Reset bag()'})]
+        }), Object.assign(new OperationSet(), {
+            id: 'group-ops', operations: [Object.assign(new Operation(), {signature: 'Reset group()'})]
+        }), Object.assign(new OperationSet(), {
+            id: 'property-ops', operations: [Object.assign(new Operation(), {signature: 'Reset property()'})]
         })]
     });
 }
@@ -197,9 +208,45 @@ describe('drilldown UI', () => {
         model.selectOperation(model.operations[0]);
         await model.execute();
         expect(hub.executeOperation).toHaveBeenCalledWith(expect.objectContaining({
-            id: 'original', objectPaths: [outerPath], path: `Trading|${fencedName}`, operation: 'Reset()'
+            id: 'original', objectPaths: [outerPath], path: `Trading|${fencedName}`, operation: 'Reset bag()'
         }));
         expect(model.results).toBe('Reset');
+    });
+
+    it.each([
+        ['Orders[2]', `Trading|${fencedName}`, 'Reset bag()'],
+        ['State', `Trading|${fencedName}|State`, 'Reset group()'],
+        ['default group in Orders[2]', `Trading|${fencedName}|`, 'Reset group()'],
+        ['Price', `Trading|${fencedName}||Price`, 'Reset property()']
+    ])('renders and executes contextual operations for %s with its complete path', async (name, path, operation) => {
+        const fixture = await render();
+        const element: HTMLElement = fixture.nativeElement;
+        const closed = new Subject();
+        dialogs.open.mockReturnValue({onClose: closed, close: jest.fn()});
+
+        expect(element.querySelector(`button[aria-label="Operations for ${name}"]`)).not.toBeNull();
+        expect(element.querySelector('button[aria-label="Operations for Passive"]')).toBeNull();
+        realtime.activeProcess = {id: 'other'} as any;
+        (element.querySelector(`button[aria-label="Operations for ${name}"]`) as HTMLButtonElement).click();
+        const model = dialogs.open.mock.calls.at(-1)![1].data as ExecOperationsModel;
+        expect(model.operations.map(item => item.signature)).toEqual([operation]);
+
+        model.selectOperation(model.operations[0]);
+        await model.execute();
+
+        expect(hub.executeOperation).toHaveBeenLastCalledWith(expect.objectContaining({
+            id: 'original', objectPaths: [outerPath], path, operation
+        }));
+    });
+
+    it('updates a group operation set with its diagnostics', async () => {
+        const fixture = await render();
+        const grid = fixture.debugElement.query(By.directive(RealtimeCategoryComponent)).componentInstance as RealtimeCategoryComponent;
+        const source = diagnostics().propertyBags[0];
+        source.categories[0].operationSet = 'property-ops';
+        grid.category!.update([source]);
+
+        expect((grid.category!.subCats[0].groups[0] as any).operationSet).toBe('property-ops');
     });
 
     it('projects matchers once per event, filters on display levels, and renders safe event detail', () => {
@@ -229,6 +276,81 @@ describe('drilldown UI', () => {
         fixture.componentRef.setInput('events', [{...event, streamId: 'new-stream'}]);
         fixture.detectChanges();
         expect(component.selected).toBeUndefined();
+    });
+
+    it('retains its process event stream and displays that store after main selection changes', async () => {
+        const event = {streamId: 'original-stream', sequence: 1, timestampUtc: '2026-09-08T10:00:00Z',
+            loggerCategory: 'App.Order', level: 2, message: 'Original'} as LogStreamEvent;
+        realtime.getProcessEventStore('original').initialize({streamId: 'original-stream', routing: {matchMode: 'AllMatches', routes: []},
+            replayEvents: [event], highWatermark: 1, maxEvents: 10, maxAgeMinutes: 10});
+        hub.getDrillDown.mockResolvedValue(Object.assign(new DrillDownResponse(), {
+            diagnostics: diagnostics(), eventViews: [{id: 'events', category: 'Trading', name: 'Orders', matchers: [
+                {loggerName: '*', loggerNameMatchMode: 'Wildcard', minLevel: null, maxLevel: null}
+            ]}]
+        }));
+        const release = jest.fn();
+        jest.spyOn(realtime, 'retainProcessEvents').mockReturnValue(release);
+
+        const fixture = await render();
+        realtime.activeProcess = {id: 'other'} as any;
+        fixture.detectChanges();
+
+        const eventView = fixture.debugElement.query(By.directive(EventSinkViewComponent)).componentInstance as EventSinkViewComponent;
+        expect(realtime.retainProcessEvents).toHaveBeenCalledWith('original');
+        expect(eventView.events).toEqual([event]);
+        fixture.destroy();
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases its owner when navigation fails while another owner keeps the process retained', async () => {
+        hub.getDrillDown.mockResolvedValueOnce(Object.assign(new DrillDownResponse(), {
+            diagnostics: diagnostics(), eventViews: [{id: 'events', category: 'Trading', name: 'Orders', matchers: []}]
+        }));
+        const component = new DrillDownDialogComponent(config, realtime);
+        await component.refresh();
+        const secondOwner = realtime.retainProcessEvents('original');
+        hub.getDrillDown.mockRejectedValueOnce(new Error('gone'));
+
+        component.navigate({title: 'Other', request: {...new DrillDownRequest(), id: 'other', objectPaths: []}});
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect((realtime as any).retainedProcessEventOwners.get('original')).toBe(1);
+        secondOwner();
+        expect((realtime as any).retainedProcessEventOwners.has('original')).toBe(false);
+    });
+
+    it('does not acquire an owner when a successful response arrives after its process is removed', async () => {
+        let resolve!: (response: DrillDownResponse) => void;
+        hub.getDrillDown.mockReturnValueOnce(new Promise<DrillDownResponse>(done => resolve = done));
+        const component = new DrillDownDialogComponent(config, realtime);
+        const pending = component.refresh();
+        realtime.removeProcess('original');
+        resolve(Object.assign(new DrillDownResponse(), {
+            diagnostics: diagnostics(), eventViews: [{id: 'events', category: 'Trading', name: 'Orders', matchers: []}]
+        }));
+
+        await pending;
+
+        expect((realtime as any).retainedProcessEventOwners.has('original')).toBe(false);
+    });
+
+    it('does not acquire an owner after an authoritative list omits its pending process', async () => {
+        realtime.displayProcesses([{id: 'original'} as any, {id: 'other'} as any]);
+        realtime.activeProcess = {id: 'other'} as any;
+        let resolve!: (response: DrillDownResponse) => void;
+        hub.getDrillDown.mockReturnValueOnce(new Promise<DrillDownResponse>(done => resolve = done));
+        const component = new DrillDownDialogComponent(config, realtime);
+        const pending = component.refresh();
+        realtime.displayProcesses([{id: 'other'} as any]);
+        resolve(Object.assign(new DrillDownResponse(), {
+            diagnostics: diagnostics(), eventViews: [{id: 'events', category: 'Trading', name: 'Orders', matchers: []}]
+        }));
+
+        await pending;
+
+        expect(realtime.isProcessRemoved('original')).toBe(true);
+        expect((realtime as any).retainedProcessEventOwners.has('original')).toBe(false);
     });
 
     it('refreshes after closing an operation dialog that executed more than once', async () => {

@@ -68,7 +68,7 @@ function logEvt(over: Partial<LogStreamEvent> = {}): LogStreamEvent {
     return {
         streamId: 'stream-1',
         sequence: nextSequence++,
-        timestampUtc: '2026-01-01T00:00:00.000Z',
+        timestampUtc: '2026-09-08T10:00:00.000Z',
         loggerCategory: 'App.Worker',
         level: WireLevel.INFO,
         eventId: 0,
@@ -228,13 +228,89 @@ describe('RealtimeModel', () => {
             expect(messages.add).toHaveBeenCalledWith(expect.objectContaining({ detail: 'boom' }));
         });
 
-        it('subscribes the active process when the connection (re)starts', () => {
+        it('resends the desired process set when the connection (re)starts', async () => {
             const {model, hub} = makeModel();
             model.activeProcess = proc('p-7', 'Worker');
 
             hub.emitStarted(hub.connection);
+            await Promise.resolve();
 
-            expect(hub.connection.invoke).toHaveBeenCalledWith('Subscribe', 'p-7');
+            expect(hub.connection.invoke).toHaveBeenCalledWith('SetSubscriptions', ['p-7']);
+        });
+
+        it('keeps a retained drilldown subscribed when selection changes', async () => {
+            const {model, hub} = makeModel();
+            const processA = proc('a', 'A');
+            const processB = proc('b', 'B');
+
+            await model.selectProcess(processA);
+            const release = model.retainProcessEvents('a');
+            await model.selectProcess(processB);
+
+            expect(hub.connection.invoke).toHaveBeenLastCalledWith('SetSubscriptions', ['a', 'b']);
+            release();
+            release();
+            await Promise.resolve();
+            expect(hub.connection.invoke).toHaveBeenLastCalledWith('SetSubscriptions', ['b']);
+        });
+
+        it('surfaces a rejected desired subscription update', async () => {
+            const {model, hub, messages} = makeModel();
+            hub.connection.invoke.mockResolvedValue(false);
+
+            await model.selectProcess(proc('p-1', 'Worker'));
+
+            expect(messages.add).toHaveBeenCalledWith(expect.objectContaining({severity: 'error'}));
+        });
+
+        it('drops owners removed by an authoritative list before reconnecting', async () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            model.displayProcesses([proc('a', 'A'), proc('b', 'B')]);
+            model.activeProcess = proc('b', 'B');
+            model.retainProcessEvents('a');
+            (hub as any).connection = undefined;
+
+            model.displayProcesses([proc('b', 'B')]);
+            hub.connection = connection;
+            hub.emitStarted(connection);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(connection.invoke).toHaveBeenCalledWith('SetSubscriptions', ['b']);
+        });
+
+        it('finishes a deferred update with the latest selection after a retained owner releases', async () => {
+            const {model, hub} = makeModel();
+            let resolve!: (value: boolean) => void;
+            hub.connection.invoke.mockReturnValueOnce(new Promise<boolean>(done => resolve = done));
+
+            const selectingA = model.selectProcess(proc('a', 'A'));
+            await Promise.resolve();
+            const releaseA = model.retainProcessEvents('a');
+            const selectingB = model.selectProcess(proc('b', 'B'));
+            releaseA();
+            resolve(true);
+            await selectingA;
+            await selectingB;
+
+            expect(hub.connection.invoke).toHaveBeenLastCalledWith('SetSubscriptions', ['b']);
+        });
+
+        it('resends the latest union on a new connection when the prior invoke settles late', async () => {
+            const {model, hub} = makeModel();
+            const oldConnection = hub.connection;
+            let resolveOld!: (value: boolean) => void;
+            oldConnection.invoke.mockReturnValueOnce(new Promise<boolean>(done => resolveOld = done));
+            const selecting = model.selectProcess(proc('a', 'A'));
+            await Promise.resolve();
+            const freshConnection = makeConnection();
+            (hub as any).connection = freshConnection;
+            hub.emitStarted(freshConnection);
+            resolveOld(true);
+            await selecting;
+
+            expect(freshConnection.invoke).toHaveBeenCalledWith('SetSubscriptions', ['a']);
         });
     });
 
@@ -298,13 +374,255 @@ describe('RealtimeModel', () => {
     });
 
     describe('log stream', () => {
+        it('shows fixed destinations even before they receive an event', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')]));
+
+            const sink = model.categories.find(category => category.name === 'Disk')?.eventSinks[0];
+            expect(sink?.name).toBe('IO');
+            expect(sink?.events).toEqual([]);
+        });
+
+        it('keeps a surviving sink and its filter state while a routing snapshot is replaced', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')], [logEvt()]));
+            const sink = model.categories.find(category => category.name === 'Disk')!.eventSinks[0];
+            sink.isExpanded = false;
+            sink.filterCriteria.searchText = 'needle';
+
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')], [logEvt({sequence: 9})]));
+
+            const replacement = model.categories.find(category => category.name === 'Disk')!.eventSinks[0];
+            expect(replacement).toBe(sink);
+            expect(replacement.isExpanded).toBe(false);
+            expect(replacement.filterCriteria.searchText).toBe('needle');
+            expect(replacement.events.map(event => event.id)).toEqual([9]);
+        });
+
+        it('removes destinations excluded by a replacement routing snapshot', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')], [logEvt({sequence: 1})]));
+
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Net', 'Http')], [logEvt({sequence: 1})]));
+
+            expect(model.categories.find(category => category.name === 'Disk')).toBeUndefined();
+            expect(model.categories.find(category => category.name === 'Net')?.eventSinks[0].events).toHaveLength(1);
+        });
+
+        it('derives destinations from retained records and restores a process projection after switching back', async () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', '', {
+                destinations: [{
+                    category: {source: 'Fixed', value: 'Disk'},
+                    name: {source: 'LoggerSuffix'},
+                }],
+            })], [logEvt()]));
+
+            await model.selectProcess(proc('other', 'Other'));
+            await model.selectProcess(proc('active', 'Worker'));
+
+            expect(model.getProcessEventStore('active').events).toHaveLength(1);
+            const sink = model.categories.find(category => category.name === 'Disk')?.eventSinks[0];
+            expect(sink?.name).toBe('App.Worker');
+            expect(sink?.events).toHaveLength(1);
+        });
+
+        it('prunes every store on the maintenance tick and clears an expired selected event', async () => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+            try {
+                const {model, hub} = makeModel();
+                const connection = makeConnection();
+                hub.emitReady(connection);
+                model.activeProcess = proc('active', 'Worker');
+                connection.handlers['InitializeLogStream']('active', {...initialization([
+                    routeTo('Disk', '', {destinations: [{
+                        category: {source: 'Fixed', value: 'Disk'},
+                        name: {source: 'LoggerSuffix'},
+                    }]})
+                ], [logEvt()]), maxAgeMinutes: 1});
+                const selected = model.categories.find(category => category.name === 'Disk')!.eventSinks[0].events[0];
+                model.setCurrentEvent(selected);
+
+                await model.start();
+                jest.setSystemTime(new Date('2026-09-08T10:01:00.001Z'));
+                // Exercise the one-second callback directly; Zone's RxJS scheduler has a separate
+                // fake-timer queue, while the model behaviour belongs to this maintenance method.
+                (model as any).checkEventSeverityLevels();
+
+                expect(model.getProcessEventStore('active').events).toEqual([]);
+                expect(model.categories.find(category => category.name === 'Disk')).toBeUndefined();
+                expect(model.selectedEvent).toBeUndefined();
+                expect(model.traceScopeVisible).toBe(false);
+                model.severityCheckSubscription?.unsubscribe();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('keeps the selected trace-scope tree when a retained record is unchanged', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')], [logEvt({
+                detail: '[00.000] [00.000] BEGIN Outer\n[00.001] [00.001] BEGIN Inner\n[00.002] [00.001] END Inner\n[00.003] [00.001] END Outer'
+            })]));
+            const selected = model.categories.find(category => category.name === 'Disk')!.eventSinks[0].events[0];
+            model.setCurrentEvent(selected);
+            const region = selected.region!;
+            region.expanded = false;
+            region.childRegions[0].expanded = true;
+
+            (model as any).checkEventSeverityLevels();
+
+            expect(model.selectedEvent).toBe(selected);
+            expect(selected.region).toBe(region);
+            expect(selected.region?.expanded).toBe(false);
+            expect(selected.region?.childRegions[0].expanded).toBe(true);
+        });
+
+        it('keeps the active category selected when a preceding projection disappears', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([
+                routeTo('Alpha', 'A'), routeTo('Beta', 'B')
+            ]));
+            model.handleSelectedTabChanged(1);
+            model.selectedIndex = 1;
+
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Beta', 'B')]));
+
+            expect(model.activeCat?.name).toBe('Beta');
+            expect(model.selectedIndex).toBe(0);
+        });
+
+        it('selects an available category when the active projection disappears', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            connection.handlers['InitializeLogStream']('active', initialization([
+                routeTo('Alpha', 'A'), routeTo('Beta', 'B')
+            ]));
+            model.handleSelectedTabChanged(1);
+
+            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Alpha', 'A')]));
+
+            expect(model.activeCat?.name).toBe('Alpha');
+            expect(model.selectedIndex).toBe(0);
+        });
+
+        it('does not revive a severity after its five-minute display timeout while the record remains retained', () => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+            try {
+                const {model, hub} = makeModel();
+                const connection = makeConnection();
+                hub.emitReady(connection);
+                model.activeProcess = proc('active', 'Worker');
+                connection.handlers['InitializeLogStream']('active', {...initialization([
+                    routeTo('Disk', 'IO')
+                ], [logEvt({level: WireLevel.WARN})]), maxAgeMinutes: 10});
+
+                jest.setSystemTime(new Date('2026-09-08T10:05:00.001Z'));
+                (model as any).checkEventSeverityLevels();
+                (model as any).checkEventSeverityLevels();
+
+                expect(model.categories.find(category => category.name === 'Disk')!.worstSev).toBe(0);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('refreshes severity timeout when another retained event arrives at the current maximum', () => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+            try {
+                const {model, hub} = makeModel();
+                const connection = makeConnection();
+                hub.emitReady(connection);
+                model.activeProcess = proc('active', 'Worker');
+                connection.handlers['InitializeLogStream']('active', {...initialization([
+                    routeTo('Disk', 'IO')
+                ], [logEvt({sequence: 1, level: WireLevel.WARN})]), maxAgeMinutes: 10});
+
+                jest.setSystemTime(new Date('2026-09-08T10:04:00.000Z'));
+                connection.handlers['StreamLogEvents']('active', [logEvt({
+                    sequence: 2, level: WireLevel.WARN, timestampUtc: '2026-09-08T10:04:00.000Z'
+                })]);
+                jest.setSystemTime(new Date('2026-09-08T10:05:00.001Z'));
+                (model as any).checkEventSeverityLevels();
+
+                expect(model.categories.find(category => category.name === 'Disk')!.worstSev).toBe(Level.WARN);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('prunes inactive process projections with their expired stores', () => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+            try {
+                const {model, hub} = makeModel();
+                const connection = makeConnection();
+                hub.emitReady(connection);
+                model.activeProcess = proc('a', 'A');
+                connection.handlers['InitializeLogStream']('a', {...initialization([
+                    routeTo('Disk', 'IO')
+                ], [logEvt({sequence: 1})]), maxAgeMinutes: 1});
+                const firstKey = [...(model as any).eventModels.keys()][0];
+                model.activeProcess = proc('b', 'B');
+                connection.handlers['InitializeLogStream']('b', {...initialization([
+                    routeTo('Disk', 'IO')
+                ], [logEvt({sequence: 2})]), maxAgeMinutes: 1});
+
+                jest.setSystemTime(new Date('2026-09-08T10:01:00.001Z'));
+                (model as any).checkEventSeverityLevels();
+
+                expect(model.getProcessEventStore('a').events).toEqual([]);
+                expect(model.getProcessEventStore('b').events).toEqual([]);
+                expect((model as any).eventModels.has(firstKey)).toBe(false);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('projects a configured retention count above 500 into the sink without a second cap', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.activeProcess = proc('active', 'Worker');
+            const events = Array.from({length: 600}, (_, sequence) => logEvt({sequence}));
+
+            connection.handlers['InitializeLogStream']('active', {...initialization([routeTo('Disk', 'IO')], events), maxEvents: 1_200});
+
+            expect(model.logStreamEvents).toHaveLength(600);
+            expect(model.categories.find(category => category.name === 'Disk')!.eventSinks[0].events).toHaveLength(600);
+        });
+
         it('retains a bounded raw projection, deduplicates replay, and fences process and stream changes', async () => {
             const {model, hub} = makeModel();
             const connection = makeConnection();
             hub.emitReady(connection);
             model.activeProcess = proc('active', 'Worker');
             const events = Array.from({length: 501}, (_, sequence) => logEvt({sequence}));
-            connection.handlers['InitializeLogStream']('active', initialization([], events));
+            connection.handlers['InitializeLogStream']('active', {...initialization([], events), maxEvents: 500});
             expect(model.logStreamEvents).toHaveLength(500);
             expect(model.logStreamEvents[0].sequence).toBe(500);
             expect(model.logStreamEvents.at(-1)?.sequence).toBe(1);
@@ -321,16 +639,47 @@ describe('RealtimeModel', () => {
             expect(model.logStreamEvents).toEqual([]);
         });
 
-        it('ignores streamed events for a process that is not the active one', () => {
+        it('retains streams for a visible nonselected process and ignores frames after its removal', () => {
             const {model, hub} = makeModel();
             const connection = makeConnection();
             hub.emitReady(connection);
+            model.displayProcesses([proc('active', 'Worker'), proc('other', 'Other')]);
             model.activeProcess = proc('active', 'Worker');
-            connection.handlers['InitializeLogStream']('active', initialization([routeTo('Cat', 'Sink')]));
+            const release = model.retainProcessEvents('other');
+            connection.handlers['InitializeLogStream']('other', initialization([routeTo('Cat', 'Sink')]));
 
             connection.handlers['StreamLogEvents']('other', [logEvt()]);
 
-            expect(model.categories).toHaveLength(0);
+            expect(model.getProcessEventStore('other').events).toHaveLength(1);
+            model.removeProcess('other');
+            connection.handlers['StreamLogEvents']('other', [logEvt()]);
+
+            expect(model.getProcessEventStore('other').events).toEqual([]);
+            release();
+        });
+
+        it('does not recreate the last removed process from a stale initialization', () => {
+            const {model, hub} = makeModel();
+            const connection = makeConnection();
+            hub.emitReady(connection);
+            model.displayProcesses([proc('a', 'A')]);
+            connection.handlers['InitializeLogStream']('a', initialization([routeTo('Cat', 'Sink')]));
+            model.removeProcess('a');
+
+            connection.handlers['InitializeLogStream']('a', initialization([routeTo('Cat', 'Sink')], [logEvt()]));
+
+            expect(model.findProcessEventStore('a')).toBeUndefined();
+        });
+
+        it('clears owners when an authoritative list becomes empty', () => {
+            const {model} = makeModel();
+            model.displayProcesses([proc('a', 'A')]);
+            model.retainProcessEvents('a');
+
+            model.displayProcesses([]);
+
+            expect((model as any).retainedProcessEventOwners.has('a')).toBe(false);
+            expect(model.isProcessRemoved('a')).toBe(true);
         });
 
         it('places an event under the destination its route resolves to', () => {
@@ -380,7 +729,7 @@ describe('RealtimeModel', () => {
 
             connection.handlers['StreamLogEvents']('active', [logEvt({loggerCategory: 'App.Net'})]);
 
-            expect(model.categories).toHaveLength(0);
+            expect(model.categories.find(category => category.name === 'Disk')?.eventSinks[0].events).toEqual([]);
         });
 
         it('shows a Trace event as Trace, not as an error', () => {
@@ -422,8 +771,8 @@ describe('RealtimeModel', () => {
             connection.handlers['InitializeLogStream']('active', initialization([routeTo('Disk', 'IO')], [logEvt()]));
             const secondSink = model.categories.find(c => c.name === 'Disk')!.eventSinks[0];
 
-            // An initialization is a whole picture, so the sink is rebuilt rather than accumulated.
-            expect(secondSink).not.toBe(firstSink);
+            // The records reset authoritatively, while the surviving destination keeps its view state.
+            expect(secondSink).toBe(firstSink);
         });
 
         it('applies the events replayed with an initialization', () => {
@@ -557,7 +906,7 @@ describe('RealtimeModel', () => {
             await model.selectProcess(proc('p-1', 'Worker'));
 
             expect(model.activeProcess?.id).toBe('p-1');
-            expect(hub.connection.invoke).toHaveBeenCalledWith('Subscribe', 'p-1');
+            expect(hub.connection.invoke).toHaveBeenCalledWith('SetSubscriptions', ['p-1']);
         });
 
         it('opens an error dialog when setPropertyValue returns an error message', async () => {
